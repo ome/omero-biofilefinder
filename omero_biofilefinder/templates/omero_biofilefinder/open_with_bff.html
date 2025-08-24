@@ -39,8 +39,8 @@
             the Key-Value pairs from the server and show any updates.
         </p>
         <p>
-            <a href="{{ bff_url}}" class="button_link">Open {{ target.dtype | capfirst }} in Biofile Finder "on the fly"</a>
-        <p>
+            <a href="{{ bff_url}}" target="_blank" class="button_link">Open {{ target.dtype | capfirst }} in Biofile Finder "on the fly"</a>
+        </p>
 
         <h2>Use a script to export Key-Value pairs</h2>
         <p>
@@ -90,10 +90,45 @@
         <h2>Using Biofile Finder</h2>
 
         <p>
+            When you select images in Biofile Finder, you can see them listed here. <br>
+            From here, you can open the Images in other applications, such as the OMERO.webclient
+            or OMERO.figure.
+
+            <hr>
+            <table id="bff_selected_files" border="1" style="border-collapse: collapse; margin-top: 10px;">
+            </table>
+        </p>
+
+        <p>
             <img src="{% static 'omero_biofilefinder/images/bff_open_file.png' %}" alt="Open File in Browser" style="float:left; margin-right: 15px; width: 300px; height: auto;">
 
             In Biofile Finder, you can open selected Images in the OMERO webclient by using the
             "Open File" button and choosing "Browser".
         </p>
+
+        <script>
+            const bc = new BroadcastChannel('bff.file_selection');
+            bc.onmessage = (event) => {
+                const data = event.data.data;
+
+                console.log('data', data);
+
+                if (data.length === 0) {
+                    document.getElementById('bff_selected_files').innerHTML = '<tr><td>No files selected</td></tr>';
+                    return;
+                }
+
+                let thead_html = data[0].map(ann => `<th>${ann.name}</th>`).join('');
+
+                let tbody_html = data.map(row => {
+                    let row_values = row.map(ann => ann.values.join(', '));
+                    return `<tr>
+                        <td>${row_values.join('</td><td>')}</td>
+                    </tr>`;
+                }).join('');
+
+                document.getElementById('bff_selected_files').innerHTML = `<thead><tr>${thead_html}</tr></thead><tbody>${tbody_html}</tbody>`;
+            };
+        </script>
     </body>
 </html>

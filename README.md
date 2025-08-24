@@ -86,7 +86,10 @@ Updating the BioFile Finder app
 
 To update the `BioFile Finder` app, checkout the code, build and replace existing static files:
 
-NB: this uses [PR #519](https://github.com/AllenInstitute/biofile-finder/pull/519).
+EXPERIMENTAL: to listen to selection changes in BFF, we need to build the app from
+branch https://github.com/will-moore/biofile-finder/tree/broadcast_channel_selection.
+
+NB: omero-biofilefinder needs [PR #519](https://github.com/AllenInstitute/biofile-finder/pull/519).
 
     $ git clone git@github.com:AllenInstitute/biofile-finder.git
     $ cd biofile-finder
