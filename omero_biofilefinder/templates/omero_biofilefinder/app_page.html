@@ -1,0 +1,106 @@
+<html>
+
+<head>
+    <title>Biofile Finder App</title>
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            width: 100%;
+        }
+        .fullpage {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            flex-direction: row;
+        }
+        /* expand to fill available space */
+        .app_container {
+            flex: 1;
+        }
+        #selection_panel {
+            flex: 0 0 300px; /* fixed width sidebar */
+            position: relative;
+            transition: width 0.5s ease-in-out;
+        }
+        #selection_panel.collapsed {
+            flex: 0 0 0; /* fixed width sidebar */
+        }
+        .collapsed .fading_content {
+            opacity: 0;
+            transition: opacity 0.2s ease-in-out;
+            display: none;
+        }
+
+        iframe {
+            border: none;
+            width: 100%;
+            height: 100%;
+        }
+        #collapse_button {
+            position: absolute;
+            left: 10px;
+            bottom: 10px;
+            transition: left 0.5s ease-in-out;
+        }
+        .collapsed #collapse_button {
+            left: -110px;
+        }
+
+    </style>
+</head>
+<body>
+    <div class="fullpage">
+        <div class="app_container">
+            <iframe src="{{ bff_url }}"></iframe>
+        </div>
+        <div id="selection_panel">
+
+            <div class="fading_content">
+                <h2>Selected Files</h2>
+                <p id="bff_selected_files">
+                    No files selected
+                </p>
+            </div>
+
+
+
+            <button id="collapse_button">collapse</button>
+        </div>
+    </div>
+
+    <script>
+        const bc = new BroadcastChannel('bff.file_selection');
+        bc.onmessage = (event) => {
+            const data = event.data.data;
+
+            console.log('data', data);
+
+            if (data.length === 0) {
+                document.getElementById('bff_selected_files').innerHTML = 'No files selected';
+                return;
+            }
+
+            // Find "Image ID" column
+            const imageIdCol = data[0].findIndex(ann => ann.name === "Image ID");
+            if (imageIdCol === -1) {
+                console.error('Image ID column not found');
+                return;
+            }
+            const imageIds = data.map(row => row[imageIdCol].values[0]);
+
+            console.log('imageIds', imageIds);
+
+            document.getElementById('bff_selected_files').innerHTML = `${imageIds.length} files selected: ${imageIds.join(', ')}`;
+        };
+
+        // Click handler for collapse button
+        document.getElementById('collapse_button').onclick = () => {
+            console.log("click...");
+            const panel = document.getElementById('selection_panel');
+            panel.classList.toggle('collapsed');
+        };
+    </script>
+</body>
+</html>

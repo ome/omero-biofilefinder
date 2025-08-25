@@ -24,7 +24,10 @@ from . import views
 urlpatterns = [
     # index 'home page' of the app
     path("", views.index, name="omero_biofilefinder_index"),
+    # entry-point - user chooses how to open BFF
     path("open_with_bff", views.open_with_bff, name="omero_biofilefinder_openwith"),
+    # App page shows bff app in an iframe - page handles open-with, annotation etc
+    path("app", views.app_page, name="omero_biofilefinder_app"),
     # when BFF loads a parquet file, the url needs to end with .parquet
     path(
         "fileann/<int:ann_id>/omero.parquet",

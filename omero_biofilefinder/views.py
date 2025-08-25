@@ -86,10 +86,12 @@ def open_with_bff(request, conn=None, **kwargs):
     else:
         obj_id = int(obj_id)
 
-    csv_url = reverse(
-        "omero_biofilefinder_csv", kwargs={"obj_id": obj_id, "obj_type": obj_type}
-    )
-    bff_url = get_bff_url(request, csv_url, "omero.csv", ext="csv")
+    # csv_url = reverse(
+    #     "omero_biofilefinder_csv", kwargs={"obj_id": obj_id, "obj_type": obj_type}
+    # )
+    # bff_url = get_bff_url(request, csv_url, "omero.csv", ext="csv")
+
+    bff_url = reverse("omero_biofilefinder_app") + f"?{obj_type}={obj_id}"
 
     # We want to pick some columns to show in the BFF app.
     # Need to know a few Keys from Key-Value pairs.
@@ -122,19 +124,20 @@ def open_with_bff(request, conn=None, **kwargs):
         return HttpResponse(f"No images found in {obj_type}:{obj_id}")
 
     # Get KVP keys for 5 images...
-    anns, experimenters = marshal_annotations(conn, image_ids=image_ids, ann_type="map")
-    keys = defaultdict(int)
-    for ann in anns:
-        for key, val in ann["values"]:
-            keys[key] += 1
-    # Sort keys by number of occurrences and take the top 3
-    sorted_keys = sorted(keys.keys(), key=lambda x: keys[x], reverse=True)
-    # Show max 5 columns (4 keys)
-    col_names = ["File Name", "Dataset"] + sorted_keys[:3]
-    col_width = 1 / len(col_names)
-    # column query e.g. "File Name:0.25,Dataset:0.25,Key1:0.25,Key2:0.25"
-    col_query = ",".join([f"{name}:{col_width}:.2f" for name in col_names])
-    bff_url += "&c=" + col_query
+    # anns, experimenters = marshal_annotations(conn, image_ids=image_ids,
+    # ann_type="map")
+    # keys = defaultdict(int)
+    # for ann in anns:
+    #     for key, val in ann["values"]:
+    #         keys[key] += 1
+    # # Sort keys by number of occurrences and take the top 3
+    # sorted_keys = sorted(keys.keys(), key=lambda x: keys[x], reverse=True)
+    # # Show max 5 columns (4 keys)
+    # col_names = ["File Name", "Dataset"] + sorted_keys[:3]
+    # col_width = 1 / len(col_names)
+    # # column query e.g. "File Name:0.25,Dataset:0.25,Key1:0.25,Key2:0.25"
+    # col_query = ",".join([f"{name}:{col_width}:.2f" for name in col_names])
+    # bff_url += "&c=" + col_query
 
     # If there is a parquet file already attached to the project, we can
     # use that instead of the csv file.
@@ -232,7 +235,7 @@ def omero_to_csv(request, obj_type, obj_id, conn=None, **kwargs):
             value = key_val[1]
             kvp[image_id][key].append(value)
 
-    column_names = ["File Path", "File Name", parent_colname, "Thumbnail"]
+    column_names = ["File Path", "Image ID", "File Name", parent_colname, "Thumbnail"]
     column_names.extend(list(keys))
     column_names.append("Uploaded")
 
@@ -250,6 +253,7 @@ def omero_to_csv(request, obj_type, obj_id, conn=None, **kwargs):
             image_url += f"?show=image-{image_id}&_=.png"
             row = [
                 image_url,
+                image_id,
                 image.getName() if image else "Not Found",
                 parent_names_by_iid.get(image_id, "Not Found"),
                 thumb_url,
@@ -336,6 +340,26 @@ def table_to_parquet(request, ann_id, conn=None, **kwargs):
             f'attachment; filename="omero_table_{fileid}.parquet"'
         )
         return response
+
+
+def app_page(request, conn=None, **kwargs):
+
+    # Handle e.g. ?dataset=1 - iframe app loads KV pairs on the fly
+    # or e.g. ?file=2 - load file annotation: OMERO.table -> parquet
+    # or load parquet file directly
+
+    bff_url = None
+    for obj_type in ["project", "plate", "dataset"]:
+        obj_id = request.GET.get(obj_type)
+        if obj_id is not None:
+            csv_url = reverse(
+                "omero_biofilefinder_csv",
+                kwargs={"obj_id": obj_id, "obj_type": obj_type},
+            )
+            bff_url = get_bff_url(request, csv_url, "omero.csv", ext="csv")
+            break
+
+    return render(request, "omero_biofilefinder/app_page.html", {"bff_url": bff_url})
 
 
 def app(request, url, **kwargs):
