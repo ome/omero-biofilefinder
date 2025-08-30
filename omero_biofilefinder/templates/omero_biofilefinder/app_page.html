@@ -8,6 +8,7 @@
             padding: 0;
             height: 100%;
             width: 100%;
+            font-family: Arial, sans-serif;
         }
         .fullpage {
             position: absolute;
@@ -18,19 +19,29 @@
         /* expand to fill available space */
         .app_container {
             flex: 1;
+            box-shadow: 5px 10px 20px rgba(0, 0, 0, 0.7);
         }
         #selection_panel {
-            flex: 0 0 300px; /* fixed width sidebar */
+            flex: 0 0 auto; /* fixed width sidebar */
             position: relative;
-            transition: width 0.5s ease-in-out;
+            transition: width 0.3s ease-in-out;
+            width: 300px;
         }
         #selection_panel.collapsed {
-            flex: 0 0 0; /* fixed width sidebar */
+            width: 0;
+        }
+        .fading_content {
+            transition: opacity 0.3s ease-in-out;
+            width: 300px;
+            height: 100%;
+            box-sizing: border-box;
+            position: absolute;
+            left: 0;
+            top: 0;
+            padding: 20px;
         }
         .collapsed .fading_content {
             opacity: 0;
-            transition: opacity 0.2s ease-in-out;
-            display: none;
         }
 
         iframe {
@@ -40,12 +51,28 @@
         }
         #collapse_button {
             position: absolute;
+            color: darkblue;
+            border: none;
+            padding: 10px;
+            background: white;
+            border-radius: 20px;
             left: 10px;
             bottom: 10px;
-            transition: left 0.5s ease-in-out;
+            transition: left 0.3s ease-in-out;
+            font-size: 16px;
         }
         .collapsed #collapse_button {
             left: -110px;
+        }
+        #collapse_button span {
+            color: white;
+            position: absolute;
+            right: -10px;
+            bottom: calc(100% - 10px);
+            height: 20px;
+            background: red;
+            border-radius: 10px;
+            padding: 5px 4px 1px 4px;
         }
 
     </style>
@@ -58,15 +85,30 @@
         <div id="selection_panel">
 
             <div class="fading_content">
-                <h2>Selected Files</h2>
-                <p id="bff_selected_files">
-                    No files selected
-                </p>
+                <h2 id="header">Selected Files</h2>
+
+                Add Annotations:
+                <hr>
+                <button id="newTag">New Tag</button>
+                <button id="existingTag">Existing Tag</button>
+
+                <form id="annotationForm">
+                    <input type="text" id="objectIds" name="objectIds" style="width: 100%;" readonly>
+
+                    <label for="newTagText">New Tag:</label>
+                    <input type="text" id="newTagText" name="new_tag">
+                    <button type="submit">Submit</button>
+                    <!-- csrf token -->
+                    <input type="hidden" name="csrfmiddlewaretoken" value="{{ csrf_token }}">
+                </form>
+
             </div>
 
 
 
-            <button id="collapse_button">collapse</button>
+            <button id="collapse_button">
+                Annotate
+                <span id="bff_selected_count">0</span></button>
         </div>
     </div>
 
@@ -92,7 +134,9 @@
 
             console.log('imageIds', imageIds);
 
-            document.getElementById('bff_selected_files').innerHTML = `${imageIds.length} files selected: ${imageIds.join(', ')}`;
+            document.getElementById('bff_selected_count').innerHTML = imageIds.length;
+            document.getElementById('header').innerHTML = `${imageIds.length} files selected`;
+            document.getElementById('objectIds').value = imageIds.join(',');
         };
 
         // Click handler for collapse button
