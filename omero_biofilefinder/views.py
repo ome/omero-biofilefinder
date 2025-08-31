@@ -22,12 +22,15 @@ import json
 import urllib
 from collections import defaultdict
 
+import omero
+
 # TODO: try/except for pyarrow import
 import pyarrow as pa
 import pyarrow.parquet as pq
-from django.http import Http404, HttpResponse
+from django.http import Http404, HttpResponse, JsonResponse
 from django.shortcuts import render
 from django.urls import reverse
+from omero.rtypes import rstring
 from omeroweb.decorators import login_required
 from omeroweb.webclient.tree import marshal_annotations
 from omeroweb.webgateway.views import perform_table_query
@@ -360,6 +363,36 @@ def app_page(request, conn=None, **kwargs):
             break
 
     return render(request, "omero_biofilefinder/app_page.html", {"bff_url": bff_url})
+
+
+@login_required()
+def handle_annotation(request, conn=None, **kwargs):
+    update_service = conn.getUpdateService()
+
+    # Handle annotation submission
+    if request.method == "POST":
+        form_data = request.POST
+
+        image_ids = [int(iid) for iid in form_data.get("objectIds", "").split(",")]
+
+        print("Image IDs:", image_ids)
+
+        new_tag = form_data.get("new_tag", "")
+        print("New Tag:", new_tag)
+        if new_tag:
+            tag = omero.model.TagAnnotationI()
+            tag.textValue = rstring(new_tag)
+            tag = update_service.saveAndReturnObject(tag)
+            print("Created Tag:", tag.id)
+            for image_id in image_ids:
+                link = omero.model.AnnotationLinkI()
+                link.parent = omero.model.TagAnnotationI(tag.id.val, False)
+                link.child = omero.model.ImageI(image_id, False)
+                update_service.saveAndReturnObject(link)
+
+        # Process the form data as needed
+        return JsonResponse({"status": "success"})
+    return JsonResponse({"status": "error"}, status=400)
 
 
 def app(request, url, **kwargs):

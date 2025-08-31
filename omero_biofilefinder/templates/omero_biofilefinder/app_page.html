@@ -87,12 +87,18 @@
             <div class="fading_content">
                 <h2 id="header">Selected Files</h2>
 
-                Add Annotations:
+                <a href="#" id="webclient_link">Open in Web Client</a>
                 <hr>
-                <button id="newTag">New Tag</button>
+                Add Annotations:
+                <br>
+                <!-- <button id="newTag">New Tag</button> -->
+                <label for="newTag">New Tag:</label>
+                <input type="text" id="newTag" name="new_tag">
+
+
                 <button id="existingTag">Existing Tag</button>
 
-                <form id="annotationForm">
+                <form id="annotationForm" action="{% url 'omero_biofilefinder_handle_annotation' %}" method="POST">
                     <input type="text" id="objectIds" name="objectIds" style="width: 100%;" readonly>
 
                     <label for="newTagText">New Tag:</label>
@@ -113,6 +119,7 @@
     </div>
 
     <script>
+        const WEBCLIENT_URL = "{% url 'webindex' %}";
         const bc = new BroadcastChannel('bff.file_selection');
         bc.onmessage = (event) => {
             const data = event.data.data;
@@ -136,7 +143,31 @@
 
             document.getElementById('bff_selected_count').innerHTML = imageIds.length;
             document.getElementById('header').innerHTML = `${imageIds.length} files selected`;
+
+            // webclient link
+            const linkIds = "image-" + imageIds.join("|image-");
+            document.getElementById('webclient_link').href = WEBCLIENT_URL + "?show=" + linkIds;
+
+            // annotation form
             document.getElementById('objectIds').value = imageIds.join(',');
+        };
+
+        // Handle form submit
+        document.getElementById('annotationForm').onsubmit = (event) => {
+            event.preventDefault();
+            const formData = new FormData(event.target);
+            fetch("{% url 'omero_biofilefinder_handle_annotation' %}", {
+                method: "POST",
+                body: formData,
+                headers: {
+                    "X-CSRFToken": formData.get("csrfmiddlewaretoken"),
+                },
+            }).then(rsp => rsp.json().then(response => {
+                console.log("Response:", response);
+                console.log("Annotations submitted successfully");
+            }).catch(err => {
+                console.error("Error parsing response", err);
+            }));
         };
 
         // Click handler for collapse button
