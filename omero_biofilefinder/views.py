@@ -197,6 +197,8 @@ def omero_to_csv(request, obj_type, obj_id, conn=None, **kwargs):
         raise Http404("{obj_type}:{obj_id} Not Found")
 
     image_ids = []
+    roi_ids = []
+    shape_ids = []
     parent_names_by_iid = {}
     parent_colname = "Dataset"
 
@@ -216,11 +218,31 @@ def omero_to_csv(request, obj_type, obj_id, conn=None, **kwargs):
                 image = ws.getImage()
                 image_ids.append(image.id)
                 parent_names_by_iid[image.id] = well.getWellPos()
+    elif obj_type == "image":
+        # Load ROIs...
+        roi_service = conn.getRoiService()
+        results = roi_service.findByImage(obj.id, None)
+        for r in results.rois:
+            parent_names_by_iid[obj.id] = f"ROI:{obj.id}"  # TODO: check text value
+            # for now, just get first shape ID for each ROI
+            shp_ids = [s.id.val for s in r.copyShapes() if s.id is not None]
+            if len(shp_ids) > 0:
+                roi_ids.append(r.id.val)
+                shape_ids.append(shp_ids[0])
 
     # We use page=-1 to avoid pagination (default is 500)
-    anns, experimenters = marshal_annotations(
-        conn, image_ids=image_ids, ann_type="map", page=-1
-    )
+    obj_ids = image_ids if len(image_ids) > 0 else roi_ids
+    print("Obj IDs:", obj_ids)
+    print("shape IDs:", shape_ids)
+    dtype = "Image" if len(image_ids) > 0 else "Roi"
+    if len(image_ids) > 0:
+        anns, experimenters = marshal_annotations(
+            conn, image_ids=image_ids, ann_type="map", page=-1
+        )
+    elif len(roi_ids) > 0:
+        anns, experimenters = marshal_annotations(
+            conn, roi_ids=roi_ids, ann_type="map", page=-1
+        )
 
     # Get all the Keys...
     keys = set()
@@ -239,7 +261,11 @@ def omero_to_csv(request, obj_type, obj_id, conn=None, **kwargs):
             value = key_val[1]
             kvp[image_id][key].append(value)
 
-    column_names = ["File Path", "Image ID", "File Name", parent_colname, "Thumbnail"]
+    column_names = ["File Path", f"{dtype} ID", "File Name", "Thumbnail"]
+    if dtype == "Roi":
+        column_names.append("Shape ID")
+    else:
+        column_names.append(parent_colname)
     column_names.extend(list(keys))
     column_names.append("Uploaded")
 
@@ -247,24 +273,42 @@ def omero_to_csv(request, obj_type, obj_id, conn=None, **kwargs):
     with io.StringIO() as csvfile:
         writer = csv.writer(csvfile)
         writer.writerow(column_names)
-        for image_id in image_ids:
-            values = kvp.get(image_id, {})
-            thumb_url = reverse("webgateway_render_thumbnail", kwargs={"iid": image_id})
-            thumb_url = request.build_absolute_uri(thumb_url)
-            image = conn.getObject("Image", image_id)
-            image_url = request.build_absolute_uri(reverse("webindex"))
-            # we end url with .png so that BFF enables open-with "Browser"
-            image_url += f"?show=image-{image_id}&_=.png"
+        for row_idx, obj_id in enumerate(obj_ids):
+            values = kvp.get(obj_id, {})
+            thumb_url = ""
+            obj_name = ""
+            object_url = request.build_absolute_uri(reverse("webindex"))
+            obj = conn.getObject(dtype, obj_id)
+            print("obj", obj, dtype, obj_id)
+            if dtype == "Roi":
+                shape_id = shape_ids[row_idx]
+                thumb_url = reverse(
+                    "webgateway_render_shape_thumbnail", kwargs={"shapeId": shape_id}
+                )
+                object_url += f"?show=roi-{obj_id}&_=.png"
+                obj_name = f"ROI:{obj_id}"
+            else:
+                thumb_url = reverse(
+                    "webgateway_render_thumbnail", kwargs={"iid": obj_id}
+                )
+                obj_name = (obj.getName() if obj else "Not Found",)
+                # we end url with .png so that BFF enables open-with "Browser"
+                object_url += f"?show=obj-{obj_id}&_=.png"
+
             row = [
-                image_url,
-                image_id,
-                image.getName() if image else "Not Found",
-                parent_names_by_iid.get(image_id, "Not Found"),
-                thumb_url,
+                object_url,
+                obj_id,
+                obj_name,
+                request.build_absolute_uri(thumb_url),
             ]
+            if dtype == "Roi":
+                row.append(shape_id)
+            else:
+                row.append(parent_names_by_iid.get(obj_id, "Not Found"))
+
             for key in keys:
                 row.append(",".join(values.get(key, [])))
-            row.append(image.creationEventDate().strftime("%Y-%m-%d %H:%M:%S.%Z"))
+            row.append(obj.creationEventDate().strftime("%Y-%m-%d %H:%M:%S.%Z"))
             writer.writerow(row)
 
         response = HttpResponse(csvfile.getvalue(), content_type="text/csv")
@@ -355,7 +399,7 @@ def app_page(request, conn=None, **kwargs):
 
     bff_url = None
     group_id = None
-    for obj_type in ["project", "plate", "dataset"]:
+    for obj_type in ["project", "plate", "dataset", "image"]:
         obj_id = request.GET.get(obj_type)
         if obj_id is not None:
             obj = conn.getObject(obj_type, int(obj_id))
@@ -384,18 +428,18 @@ def handle_annotation(request, conn=None, **kwargs):
     if request.method == "POST":
         form_data = request.POST
 
-        image_ids = [int(iid) for iid in form_data.get("objectIds", "").split(",")]
-        if len(image_ids) == 0:
+        object_ids = [int(iid) for iid in form_data.get("objectIds", "").split(",")]
+        if len(object_ids) == 0:
             return JsonResponse(
                 {"status": "error", "message": "No objectIds"}, status=400
             )
 
-        obj_type = "Image"
-        print("Image IDs:", image_ids)
+        obj_type = request.POST.get("objectType", "Image")
+        print("Object IDs:", object_ids)
         # Get group from first object
-        obj = conn.getObject(obj_type, int(image_ids[0]))
+        obj = conn.getObject(obj_type, int(object_ids[0]))
         if obj is None:
-            raise Http404(f"{obj_type}:{image_ids[0]} Not Found")
+            raise Http404(f"{obj_type}:{object_ids[0]} Not Found")
         group_id = obj.getDetails().group.id.val
         conn.SERVICE_OPTS.setOmeroGroup(group_id)
 
@@ -433,10 +477,15 @@ def handle_annotation(request, conn=None, **kwargs):
 
         # Link existing and new Tags to Images
         for ann in annotations:
-            for image_id in image_ids:
-                link = omero.model.ImageAnnotationLinkI()
+            for object_id in object_ids:
+                if obj_type == "Image":
+                    link = omero.model.ImageAnnotationLinkI()
+                    link.parent = omero.model.ImageI(object_id, False)
+                else:
+                    link = omero.model.RoiAnnotationLinkI()
+                    link.parent = omero.model.RoiI(object_id, False)
                 link.child = ann
-                link.parent = omero.model.ImageI(image_id, False)
+
                 try:
                     link = update_service.saveAndReturnObject(link)
                     print("Linked Annotation with Link:", link.id.val)

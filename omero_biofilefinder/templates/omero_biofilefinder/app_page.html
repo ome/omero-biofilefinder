@@ -107,7 +107,8 @@
                 <details>
                     <summary>Add Tags:</summary>
                     <form id="tagsForm" action="{% url 'omero_biofilefinder_handle_annotation' %}" method="POST">
-                        <input type="hidden" name="objectIds" style="width: 100%;" readonly>
+                        <input type="hidden" name="objectIds" readonly>
+                        <input type="hidden" name="objectType" readonly>
                         <div>
                             <label for="newTagText">New Tag:</label>
                             <input type="text" id="newTagText" name="new_tag" placeholder="New Tag text">
@@ -131,7 +132,8 @@
                 <details>
                     <summary>Add Key-Value Pairs:</summary>
                     <form id="mapForm" action="{% url 'omero_biofilefinder_handle_annotation' %}" method="POST">
-                        <input type="hidden" name="objectIds" style="width: 100%;" readonly>
+                        <input type="hidden" name="objectIds" readonly>
+                        <input type="hidden" name="objectType" readonly>
                         <div>
                             <textarea name="maps" placeholder='key1: value1 &#10;key2: value2' style="width: 100%; height: 100px;"></textarea>
                         </div>
@@ -169,27 +171,44 @@
                 return;
             }
 
+            // Check for ROI and Shape IDs, then Image ID...
+            const roiIdCol = data[0].findIndex(ann => ann.name === "Roi ID");
+            const shapeIdCol = data[0].findIndex(ann => ann.name === "Shape ID");
             // Find "Image ID" column
             const imageIdCol = data[0].findIndex(ann => ann.name === "Image ID");
-            if (imageIdCol === -1) {
-                console.error('Image ID column not found');
+            if (imageIdCol === -1 && roiIdCol === -1) {
+                console.error('No Image ID column or Roi ID column');
                 return;
             }
-            const imageIds = data.map(row => row[imageIdCol].values[0]);
 
-            console.log('imageIds', imageIds);
+            let objectIds = [];
+            let dtype = "";
+            if (imageIdCol > -1) {
+                objectIds = data.map(row => row[imageIdCol].values[0]);
+                dtype = "Image";
+            } else {
+                // use ROI IDs
+                objectIds = data.map(row => row[roiIdCol].values[0]);
+                dtype = "Roi";
+            }
 
-            document.getElementById('bff_selected_count').innerHTML = imageIds.length;
-            document.getElementById('header').innerHTML = `${imageIds.length} files selected`;
-            document.getElementById('header').title = imageIds.join(", ");
+            console.log('objectIds', objectIds);
+            let s = objectIds.length === 1 ? "" : "s";
+
+            document.getElementById('bff_selected_count').innerHTML = objectIds.length;
+            document.getElementById('header').innerHTML = `${objectIds.length} ${dtype}${s} selected`;
+            document.getElementById('header').title = objectIds.join(", ");
 
             // webclient link
-            const linkIds = "image-" + imageIds.join("|image-");
+            const linkIds = dtype.toLowerCase() + "-" + objectIds.join("|" + dtype.toLowerCase() + "-");
             document.getElementById('webclient_link').href = WEBCLIENT_URL + "?show=" + linkIds;
 
             // annotation form
             document.querySelectorAll('input[name="objectIds"]').forEach(input => {
-                input.value = imageIds.join(',');
+                input.value = objectIds.join(',');
+            });
+            document.querySelectorAll('input[name="objectType"]').forEach(input => {
+                input.value = dtype;
             });
         };
 

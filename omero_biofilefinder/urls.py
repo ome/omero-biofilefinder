@@ -45,7 +45,7 @@ urlpatterns = [
         name="omero_biofilefinder_table_to_parquet",
     ),
     re_path(
-        r"^(?P<obj_type>(project|dataset|plate))/(?P<obj_id>[0-9]+)$",
+        r"^to_csv/(?P<obj_type>(project|dataset|plate|image))/(?P<obj_id>[0-9]+)$",
         views.omero_to_csv,
         name="omero_biofilefinder_csv",
     ),
