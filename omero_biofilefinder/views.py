@@ -30,6 +30,7 @@ import pyarrow.parquet as pq
 from django.http import Http404, HttpResponse, JsonResponse
 from django.shortcuts import render
 from django.urls import reverse
+from omero import ValidationException
 from omero.rtypes import rstring
 from omeroweb.decorators import login_required
 from omeroweb.webclient.tree import marshal_annotations
@@ -345,6 +346,7 @@ def table_to_parquet(request, ann_id, conn=None, **kwargs):
         return response
 
 
+@login_required()
 def app_page(request, conn=None, **kwargs):
 
     # Handle e.g. ?dataset=1 - iframe app loads KV pairs on the fly
@@ -352,9 +354,14 @@ def app_page(request, conn=None, **kwargs):
     # or load parquet file directly
 
     bff_url = None
+    group_id = None
     for obj_type in ["project", "plate", "dataset"]:
         obj_id = request.GET.get(obj_type)
         if obj_id is not None:
+            obj = conn.getObject(obj_type, int(obj_id))
+            if obj is None:
+                raise Http404(f"{obj_type}:{obj_id} Not Found")
+            group_id = obj.getDetails().group.id.val
             csv_url = reverse(
                 "omero_biofilefinder_csv",
                 kwargs={"obj_id": obj_id, "obj_type": obj_type},
@@ -362,7 +369,11 @@ def app_page(request, conn=None, **kwargs):
             bff_url = get_bff_url(request, csv_url, "omero.csv", ext="csv")
             break
 
-    return render(request, "omero_biofilefinder/app_page.html", {"bff_url": bff_url})
+    context = {
+        "bff_url": bff_url,
+        "group_id": group_id,
+    }
+    return render(request, "omero_biofilefinder/app_page.html", context)
 
 
 @login_required()
@@ -374,22 +385,64 @@ def handle_annotation(request, conn=None, **kwargs):
         form_data = request.POST
 
         image_ids = [int(iid) for iid in form_data.get("objectIds", "").split(",")]
+        if len(image_ids) == 0:
+            return JsonResponse(
+                {"status": "error", "message": "No objectIds"}, status=400
+            )
 
+        obj_type = "Image"
         print("Image IDs:", image_ids)
+        # Get group from first object
+        obj = conn.getObject(obj_type, int(image_ids[0]))
+        if obj is None:
+            raise Http404(f"{obj_type}:{image_ids[0]} Not Found")
+        group_id = obj.getDetails().group.id.val
+        conn.SERVICE_OPTS.setOmeroGroup(group_id)
 
         new_tag = form_data.get("new_tag", "")
         print("New Tag:", new_tag)
+
+        annotations = []
+
+        maps_text = form_data.get("maps", "")
+        if maps_text:
+            kvps = []
+            for line in maps_text.splitlines():
+                if ":" in line:
+                    key, value = line.split(":", 1)
+                    kvps.append([key.strip(), value.strip()])
+            if len(kvps) > 0:
+                ann = omero.gateway.MapAnnotationWrapper(conn)
+                ann.setValue(kvps)
+                ann.setNs(rstring("omero.biofilefinder.maps"))
+                ann.save()
+                print("Created MapAnnotation:", ann.id)
+                annotations.append(omero.model.MapAnnotationI(ann.id, False))
+
         if new_tag:
             tag = omero.model.TagAnnotationI()
             tag.textValue = rstring(new_tag)
             tag = update_service.saveAndReturnObject(tag)
             print("Created Tag:", tag.id)
-            for image_id in image_ids:
-                link = omero.model.AnnotationLinkI()
-                link.parent = omero.model.TagAnnotationI(tag.id.val, False)
-                link.child = omero.model.ImageI(image_id, False)
-                update_service.saveAndReturnObject(link)
+            annotations.append(tag)
 
+        tags = form_data.getlist("tag", [])
+        for tag_id in tags:
+            tag = omero.model.TagAnnotationI(tag_id, False)
+            annotations.append(tag)
+
+        # Link existing and new Tags to Images
+        for ann in annotations:
+            for image_id in image_ids:
+                link = omero.model.ImageAnnotationLinkI()
+                link.child = ann
+                link.parent = omero.model.ImageI(image_id, False)
+                try:
+                    link = update_service.saveAndReturnObject(link)
+                    print("Linked Annotation with Link:", link.id.val)
+                except ValidationException as e:
+                    # E.g. if link aready exists
+                    print("Error linking Annotation to Image:", e)
         # Process the form data as needed
         return JsonResponse({"status": "success"})
     return JsonResponse({"status": "error"}, status=400)
