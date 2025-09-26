@@ -237,14 +237,11 @@ def omero_to_csv(request, obj_type, obj_id, conn=None, **kwargs):
     print("Obj IDs:", obj_ids)
     print("shape IDs:", shape_ids)
     dtype = "Image" if len(image_ids) > 0 else "Roi"
-    if len(image_ids) > 0:
-        anns, experimenters = marshal_annotations(
-            conn, image_ids=image_ids, ann_type="map", page=-1
-        )
-    elif len(roi_ids) > 0:
-        anns, experimenters = marshal_annotations(
-            conn, roi_ids=roi_ids, ann_type="map", page=-1
-        )
+
+    # Load MAP Annotations for images or ROIs
+    anns, experimenters = marshal_annotations(
+        conn, image_ids=image_ids, roi_ids=roi_ids, ann_type="map", page=-1
+    )
 
     # Get all the Keys...
     keys = set()
@@ -252,24 +249,37 @@ def omero_to_csv(request, obj_type, obj_id, conn=None, **kwargs):
         for key_val in ann["values"]:
             keys.add(key_val[0])
 
-    # Add values to dict {image_id: {key: [list, of, values]}}
+    # Add values to dict {object_id: {key: [list, of, values]}}
     kvp = {}
     for ann in anns:
-        image_id = ann["link"]["parent"]["id"]
-        if image_id not in kvp:
-            kvp[image_id] = defaultdict(list)
+        obj_id = ann["link"]["parent"]["id"]
+        if obj_id not in kvp:
+            kvp[obj_id] = defaultdict(list)
         for key_val in ann["values"]:
             key = key_val[0]
             value = key_val[1]
-            kvp[image_id][key].append(value)
+            kvp[obj_id][key].append(value)
 
-    column_names = ["File Path", f"{dtype} ID", "File Name", "Thumbnail"]
+    # Load TAGS...
+    tag_anns, experimenters = marshal_annotations(
+        conn, image_ids=image_ids, roi_ids=roi_ids, ann_type="tag", page=-1
+    )
+    # organise by object id
+    tags = defaultdict(list)
+    for ann in tag_anns:
+        obj_id = ann["link"]["parent"]["id"]
+        if obj_id not in tags:
+            tags[obj_id] = []
+        tags[obj_id].append(ann["textValue"])
+
+    # Build the Table....
+    column_names = ["File Path", f"{dtype} ID", "File Name", "Tags"]
     if dtype == "Roi":
         column_names.append("Shape ID")
     else:
         column_names.append(parent_colname)
     column_names.extend(list(keys))
-    column_names.append("Uploaded")
+    column_names.extend(["Uploaded", "Thumbnail"])
 
     # write csv to return as http response
     with io.StringIO() as csvfile:
@@ -301,7 +311,7 @@ def omero_to_csv(request, obj_type, obj_id, conn=None, **kwargs):
                 object_url,
                 obj_id,
                 obj_name,
-                request.build_absolute_uri(thumb_url),
+                ",".join(tags.get(obj_id, [])),
             ]
             if dtype == "Roi":
                 row.append(shape_id)
@@ -310,7 +320,9 @@ def omero_to_csv(request, obj_type, obj_id, conn=None, **kwargs):
 
             for key in keys:
                 row.append(",".join(values.get(key, [])))
+            # Add last columns
             row.append(obj.creationEventDate().strftime("%Y-%m-%d %H:%M:%S.%Z"))
+            row.append(request.build_absolute_uri(thumb_url))
             writer.writerow(row)
 
         response = HttpResponse(csvfile.getvalue(), content_type="text/csv")
