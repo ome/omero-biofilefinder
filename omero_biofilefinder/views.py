@@ -31,7 +31,7 @@ from django.http import Http404, HttpResponse, JsonResponse
 from django.shortcuts import render
 from django.urls import reverse
 from omero import ValidationException
-from omero.rtypes import rstring
+from omero.rtypes import rstring, unwrap
 from omeroweb.decorators import login_required
 from omeroweb.webclient.tree import marshal_annotations
 from omeroweb.webgateway.views import perform_table_query
@@ -200,7 +200,7 @@ def omero_to_csv(request, obj_type, obj_id, conn=None, **kwargs):
 
     image_ids = []
     roi_ids = []
-    shape_ids = []
+    shapes = []
     parent_names_by_iid = {}
     parent_colname = "Dataset"
 
@@ -227,15 +227,13 @@ def omero_to_csv(request, obj_type, obj_id, conn=None, **kwargs):
         for r in results.rois:
             parent_names_by_iid[obj.id] = f"ROI:{obj.id}"  # TODO: check text value
             # for now, just get first shape ID for each ROI
-            shp_ids = [s.id.val for s in r.copyShapes() if s.id is not None]
-            if len(shp_ids) > 0:
+            shps = [s for s in r.copyShapes() if s.id is not None]
+            if len(shps) > 0:
                 roi_ids.append(r.id.val)
-                shape_ids.append(shp_ids[0])
+                shapes.append(shps[0])
 
     # We use page=-1 to avoid pagination (default is 500)
     obj_ids = image_ids if len(image_ids) > 0 else roi_ids
-    print("Obj IDs:", obj_ids)
-    print("shape IDs:", shape_ids)
     dtype = "Image" if len(image_ids) > 0 else "Roi"
 
     # Load MAP Annotations for images or ROIs
@@ -273,9 +271,10 @@ def omero_to_csv(request, obj_type, obj_id, conn=None, **kwargs):
         tags[obj_id].append(ann["textValue"])
 
     # Build the Table....
-    column_names = ["File Path", f"{dtype} ID", "File Name", "Tags"]
+    column_names = ["File Path", f"{dtype} ID", "Name", "Tags"]
     if dtype == "Roi":
         column_names.append("Shape ID")
+        column_names.append("Shape Type")
     else:
         column_names.append(parent_colname)
     column_names.extend(list(keys))
@@ -291,14 +290,14 @@ def omero_to_csv(request, obj_type, obj_id, conn=None, **kwargs):
             obj_name = ""
             object_url = request.build_absolute_uri(reverse("webindex"))
             obj = conn.getObject(dtype, obj_id)
-            print("obj", obj, dtype, obj_id)
             if dtype == "Roi":
-                shape_id = shape_ids[row_idx]
+                shape = shapes[row_idx]
                 thumb_url = reverse(
-                    "webgateway_render_shape_thumbnail", kwargs={"shapeId": shape_id}
+                    "webgateway_render_shape_thumbnail",
+                    kwargs={"shapeId": shape.id.val},
                 )
                 object_url += f"?show=roi-{obj_id}&_=.png"
-                obj_name = f"ROI:{obj_id}"
+                obj_name = obj.getName() or unwrap(shape.getTextValue()) or ""
             else:
                 thumb_url = reverse(
                     "webgateway_render_thumbnail", kwargs={"iid": obj_id}
@@ -314,7 +313,8 @@ def omero_to_csv(request, obj_type, obj_id, conn=None, **kwargs):
                 ",".join(tags.get(obj_id, [])),
             ]
             if dtype == "Roi":
-                row.append(shape_id)
+                row.append(shape.id.val)
+                row.append(type(shape).__name__[:-1])  # remove trailing I
             else:
                 row.append(parent_names_by_iid.get(obj_id, "Not Found"))
 
