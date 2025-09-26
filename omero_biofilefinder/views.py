@@ -80,13 +80,13 @@ def open_with_bff(request, conn=None, **kwargs):
     we can use that instead of the csv file.
     """
 
-    for obj_type in ["project", "plate", "dataset"]:
+    for obj_type in ["project", "plate", "dataset", "image"]:
         obj_id = request.GET.get(obj_type)
         if obj_id is not None:
             break
 
     if obj_id is None:
-        raise Http404("Use ?project=1 or ?screen=1")
+        raise Http404("Use e.g. ?project=1, for Project, Dataset, Image or Plate")
     else:
         obj_id = int(obj_id)
 
@@ -124,8 +124,10 @@ def open_with_bff(request, conn=None, **kwargs):
             if len(image_ids) > 5:
                 break
 
-    if len(image_ids) == 0:
-        return HttpResponse(f"No images found in {obj_type}:{obj_id}")
+    # Handle single Image case - load annotation for ROIs (or shapes?!)
+
+    # if len(image_ids) == 0:
+    #     return HttpResponse(f"No images found in {obj_type}:{obj_id}")
 
     # Get KVP keys for 5 images...
     # anns, experimenters = marshal_annotations(conn, image_ids=image_ids,

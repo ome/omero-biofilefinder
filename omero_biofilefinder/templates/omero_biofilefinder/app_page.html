@@ -101,7 +101,11 @@
             <div class="fading_content">
                 <h2 id="header">Selected Files</h2>
 
-                <a href="#" target="_blank" id="webclient_link">Open in Web Client</a>
+                <a href="#" target="_blank" id="webclient_link">Open in Web Client</a> <br>
+                <label title="Broadcast selection changes to other windows">
+                    <input type="checkbox" id="broadcast_selection">
+                    Broadcast selection
+                </label>
                 <hr>
 
                 <details>
@@ -160,6 +164,11 @@
     <script>
         const WEBCLIENT_URL = "{% url 'webindex' %}";
         const GROUP_ID = "{{ group_id }}";
+
+        const selectshapes_bc = new BroadcastChannel("shape_selection");
+        const selectimages_bc = new BroadcastChannel("image_selected");
+
+        // Listen for messages from Biofile Finder...
         const bc = new BroadcastChannel('bff.file_selection');
         bc.onmessage = (event) => {
             const data = event.data.data;
@@ -182,6 +191,7 @@
             }
 
             let objectIds = [];
+            let shapeIds = [];
             let dtype = "";
             if (imageIdCol > -1) {
                 objectIds = data.map(row => row[imageIdCol].values[0]);
@@ -189,6 +199,7 @@
             } else {
                 // use ROI IDs
                 objectIds = data.map(row => row[roiIdCol].values[0]);
+                shapeIds = data.map(row => row[shapeIdCol].values[0]);
                 dtype = "Roi";
             }
 
@@ -210,7 +221,21 @@
             document.querySelectorAll('input[name="objectType"]').forEach(input => {
                 input.value = dtype;
             });
-        };
+
+            // IF broadcast_selection checked, broadcast to "shape_selection" channel
+            if (document.getElementById('broadcast_selection').checked) {
+                // TODO: see https://github.com/ome/omero-iviewer/pull/508 - This API will change!
+                if (dtype == "Roi") {
+                    const roiId = objectIds[0];
+                    const shapeId = shapeIds[0];
+                    console.log("Broadcasting shape selection...", `${roiId}:${shapeId}`);
+                    selectshapes_bc.postMessage({"id": `${roiId}:${shapeId}`});
+                } else {
+                    console.log("Broadcasting image selection...", objectIds[0]);
+                    selectimages_bc.postMessage(parseInt(objectIds[0]));
+                }
+            }
+        }
 
         document.getElementById('loadTags').onclick = (event) => {
             console.log("Load Tags...", event);
