@@ -199,7 +199,7 @@ def omero_to_csv(request, obj_type, obj_id, conn=None, **kwargs):
         raise Http404("{obj_type}:{obj_id} Not Found")
 
     image_ids = []
-    roi_ids = []
+    # roi_ids = []
     shapes = []
     parent_names_by_iid = {}
     parent_colname = "Dataset"
@@ -221,24 +221,31 @@ def omero_to_csv(request, obj_type, obj_id, conn=None, **kwargs):
                 image_ids.append(image.id)
                 parent_names_by_iid[image.id] = well.getWellPos()
     elif obj_type == "image":
+        # Can't load ROI annotations yet - see https://github.com/ome/omero-web/pull/635
+        raise Http404("Image object type not supported for CSV export")
         # Load ROIs...
-        roi_service = conn.getRoiService()
-        results = roi_service.findByImage(obj.id, None)
-        for r in results.rois:
-            parent_names_by_iid[obj.id] = f"ROI:{obj.id}"  # TODO: check text value
-            # for now, just get first shape ID for each ROI
-            shps = [s for s in r.copyShapes() if s.id is not None]
-            if len(shps) > 0:
-                roi_ids.append(r.id.val)
-                shapes.append(shps[0])
+        # roi_service = conn.getRoiService()
+        # results = roi_service.findByImage(obj.id, None)
+        # for r in results.rois:
+        #     parent_names_by_iid[obj.id] = f"ROI:{obj.id}"  # TODO: check text value
+        #     # for now, just get first shape ID for each ROI
+        #     shps = [s for s in r.copyShapes() if s.id is not None]
+        #     if len(shps) > 0:
+        #         roi_ids.append(r.id.val)
+        #         shapes.append(shps[0])
 
     # We use page=-1 to avoid pagination (default is 500)
-    obj_ids = image_ids if len(image_ids) > 0 else roi_ids
+    # obj_ids = image_ids if len(image_ids) > 0 else roi_ids
+    obj_ids = image_ids
     dtype = "Image" if len(image_ids) > 0 else "Roi"
 
     # Load MAP Annotations for images or ROIs
     anns, experimenters = marshal_annotations(
-        conn, image_ids=image_ids, roi_ids=roi_ids, ann_type="map", page=-1
+        conn,
+        image_ids=image_ids,
+        ann_type="map",
+        page=-1,
+        # roi_ids=roi_ids
     )
 
     # Get all the Keys...
@@ -260,7 +267,11 @@ def omero_to_csv(request, obj_type, obj_id, conn=None, **kwargs):
 
     # Load TAGS...
     tag_anns, experimenters = marshal_annotations(
-        conn, image_ids=image_ids, roi_ids=roi_ids, ann_type="tag", page=-1
+        conn,
+        image_ids=image_ids,
+        ann_type="tag",
+        page=-1,
+        # roi_ids=roi_ids,
     )
     # organise by object id
     tags = defaultdict(list)
@@ -302,7 +313,7 @@ def omero_to_csv(request, obj_type, obj_id, conn=None, **kwargs):
                 thumb_url = reverse(
                     "webgateway_render_thumbnail", kwargs={"iid": obj_id}
                 )
-                obj_name = (obj.getName() if obj else "Not Found",)
+                obj_name = obj.getName() if obj else "Not Found"
                 # we end url with .png so that BFF enables open-with "Browser"
                 object_url += f"?show=obj-{obj_id}&_=.png"
 
