@@ -3,7 +3,7 @@
 
 
 OMERO BioFile Finder
-==================================
+====================
 
 This plugin supports opening of OMERO data (e.g. a Project) in the BioFile Finder app https://bff.allencell.org/.
 
@@ -116,4 +116,4 @@ licensed under the terms of the AGPL v3.
 Copyright
 =========
 
-2024 University of Dundee
+2024-2025 University of Dundee
