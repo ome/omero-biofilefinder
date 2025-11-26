@@ -1,5 +1,5 @@
 
-[![Actions Status](https://github.com/will-moore/omero-biofilefinder/workflows/OMERO/badge.svg)](https://github.com/will-moore/omero-biofilefinder/actions)
+[![Actions Status](https://github.com/ome/omero-biofilefinder/workflows/OMERO/badge.svg)](https://github.com/ome/omero-biofilefinder/actions)
 
 
 OMERO BioFile Finder
