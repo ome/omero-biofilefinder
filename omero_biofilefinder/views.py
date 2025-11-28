@@ -19,13 +19,16 @@
 import csv
 import io
 import json
+import os
 import urllib
 from collections import defaultdict
+
+import omero
 
 # TODO: try/except for pyarrow import
 import pyarrow as pa
 import pyarrow.parquet as pq
-from django.http import Http404, HttpResponse
+from django.http import Http404, HttpResponse, JsonResponse
 from django.shortcuts import render
 from django.urls import reverse
 from omeroweb.decorators import login_required
@@ -36,6 +39,8 @@ from . import biofilefinder_settings as settings
 
 BFF_NAMESPACE = "omero_biofilefinder.parquet"
 TABLE_NAMESPACE = "openmicroscopy.org/omero/bulk_annotations"
+
+SCRIPT_PATH = "/omero/annotation_scripts/Export_to_Biofile_Finder.py"
 
 
 @login_required()
@@ -142,7 +147,7 @@ def open_with_bff(request, conn=None, **kwargs):
     table_anns = []
     for ann in obj.listAnnotations(ns=BFF_NAMESPACE):
         if ann.getFile() is not None:
-            pq_url = reverse("omero_biofilefinder_fileann", kwargs={"ann_id": ann.id})
+            pq_url = reverse("omero_biofilefinder_fileann", kwargs={"annId": ann.id})
             bff_parquet_anns.append(
                 {
                     "id": ann.id,
@@ -172,11 +177,16 @@ def open_with_bff(request, conn=None, **kwargs):
             }
         )
 
+    script_service = conn.getScriptService()
+    script_id = script_service.getScriptID(SCRIPT_PATH)
+
     context = {
         "bff_url": bff_url,
         "target": {"dtype": obj_type, "id": obj_id, "name": obj.getName()},
         "bff_parquet_anns": bff_parquet_anns,
         "table_anns": table_anns,
+        "script_id": script_id,
+        "is_admin": conn.isAdmin(),
     }
 
     return render(request, "omero_biofilefinder/open_with_bff.html", context)
@@ -369,3 +379,51 @@ def app(request, url, **kwargs):
         elif url.endswith(".html"):
             response["Content-Type"] = "text/html"
     return response
+
+
+@login_required(isAdmin=True)
+def upload_omero_script(request, conn=None, **kwargs):
+    """Uploads or Replaces the Export_to_Biofile_Finder.py"""
+
+    if not request.method == "POST":
+        return HttpResponse("Need to use POST")
+
+    script_service = conn.getScriptService()
+    script_id = script_service.getScriptID(SCRIPT_PATH)
+
+    this_dir = os.path.dirname(os.path.abspath(__file__))
+    script_path = os.path.join(this_dir, "scripts", SCRIPT_PATH[1:])
+
+    try:
+        with open(script_path) as script_file:
+            script_text = script_file.read()
+    except FileNotFoundError:
+        return JsonResponse({"Error": "Failed to load script from " + script_path})
+
+    # If script exists, replace. Otherwise upload
+    try:
+        if script_id > 0:
+            orig_file = omero.model.OriginalFileI(script_id, False)
+            script_service.editScript(orig_file, script_text)
+            message = "Script Replaced"
+        else:
+            script_id = script_service.uploadOfficialScript(SCRIPT_PATH, script_text)
+            message = "Script Uploaded"
+    except omero.ValidationException as ex:
+        return JsonResponse({"Error": ex.message})
+
+    return JsonResponse({"Message": message, "script_id": script_id})
+
+
+@login_required(isAdmin=True)
+def admin_page(request, conn=None, **kwargs):
+    """Admin page to upload or replace the OMERO.script"""
+
+    script_service = conn.getScriptService()
+    script_id = script_service.getScriptID(SCRIPT_PATH)
+
+    print("Script ID:", script_id)
+    context = {
+        "script_id": script_id,
+    }
+    return render(request, "omero_biofilefinder/admin.html", context)
