@@ -5,9 +5,11 @@
 OMERO BioFile Finder
 ==================================
 
-This plugin supports opening of OMERO data (e.g. a Project) in the BioFile Finder app https://bff.allencell.org/.
+This plugin supports opening a table of OMERO Images (from a Project, Dataset or Plate) in the BioFile Finder app https://bff.allencell.org/.
 
 Key-Value pairs on Images in OMERO are converted into tabular data for BFF.
+
+To use: select a Project, Dataset or Screen, use the context menu to `Open With > BioFile Finder`.
 
 For medium numbers of Images, Biofile Finder can load Key-Value pairs "on the fly", in a single
 http request. If the BFF app page is refreshed, it will re-load the Key-Value pairs from OMERO and this
@@ -18,8 +20,6 @@ a single http request. In this case, there is the option to use a server-side OM
 the Key-Value pairs to a `parquet` file, attached to the Project. Then, Biofile Finder can load
 the `parquet` file directly. You will need an Admin to install the
 script on the server (see below) and it has a dependency of the `pyarrow` library.
-
-NB: This app is not yet "production ready" or supported by the OME team. Feedback welcome!
 
 
 Data in webclient - images and Key-Value pairs are from idr0021.
@@ -116,4 +116,4 @@ licensed under the terms of the AGPL v3.
 Copyright
 =========
 
-2024 University of Dundee
+2024 - 2026 University of Dundee
