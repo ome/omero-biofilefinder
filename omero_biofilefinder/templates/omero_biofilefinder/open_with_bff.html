@@ -5,7 +5,7 @@
         <style>
             body {
                 font-family: Arial, sans-serif;
-                margin: 20px;
+                margin: 0px;
                 color: #333;
             }
 
@@ -18,82 +18,104 @@
                 text-decoration: none;
                 color: black;
             }
+            .navbar {
+                color: white;
+                background-color: #202020;
+                padding: 10px;
+                border-bottom: solid black 1px;
+                margin-bottom: 20px;
+                box-shadow: 0px 3px 4px 0px rgba(0, 0, 0, 0.3);
+            }
+            h1, h2 {
+                margin: 0px;
+                font-size: 24px;
+                font-weight: 200;
+            }
+            h2 {
+                font-size: 20px;
+            }
+            .content {
+                max-width: 800px;
+                margin: 0 auto;
+            }
         </style>
     </head>
 
     <body>
-        <h1>Open {{ target.dtype | capfirst }}:{{ target.id }} with Biofile Finder...</h1>
+      <div class="navbar">
+          <h1>OMERO BioFile Finder</h1>
+      </div>
 
+      <div class="content">
+        <h1>Open with Biofile Finder...</h1>
         <p>
-            {{ target.dtype | capfirst }} name: <b>{{ target.name }}</b>
+            {{ target.dtype | capfirst }} name: <b>{{ target.name }}</b> <br/>
+            Image count: <b>{{ img_count }}</b>
         </p>
         <p>
-            Biofile Finder will load Key-Value pairs from Images in OMERO. For large numbers of Images, this can take
-            time to export, but with fewer than 400-500 images, it can be done "on the fly".
+            Biofile Finder loads Key-Value pairs from Images in OMERO.
         </p>
 
-        <h2>Load on the fly</h2>
         <p>
-            Biofile Finder will load the Key-Value pairs from all the images "on the fly".
-            If you refresh the app, BFF will reload
-            the Key-Value pairs from the server and show any updates.
-        </p>
-        <p>
-            <a href="{{ bff_url}}" class="button_link">Open {{ target.dtype | capfirst }} in Biofile Finder "on the fly"</a>
+            <a href="{{ bff_url}}" class="button_link">Open {{ target.dtype | capfirst }} in Biofile Finder</a>
         <p>
 
-        <h2>Use a script to export Key-Value pairs</h2>
-        <p>
-            For larger numbers of Images, you can export the Key-Value pairs to a parquet file
-            (attached to the {{ target.dtype | capfirst }}) using an OMERO.script.
-        </p>
+        {% if img_count > 400 %}
+        <div style="border-radius: 10px; border: solid rgb(194, 193, 193) 1px; padding: 10px; background-color: #f0f0f0; margin-bottom: 20px;">
+          <h2>Alternative option: Use a script to export Key-Value pairs</h2>
 
-        {% if bff_parquet_anns %}
-                <h3>Existing parquet files:</h3>
-                <ul>
-                {% for ann in bff_parquet_anns %}
-                    <li>
-                        {{ ann.name }} (Created: {{ ann.created }} Size: {{ ann.size }} bytes)
-                        <a class="button_link" href="{{ ann.bbf_url }}">Open parquet in Biofile Finder</a>
-                    </li>
-                {% endfor %}
-                </ul>
-        {% else %}
-            <p>
-                No parquet files currently attached to {{ target.dtype | capfirst }}:{{ target.id }}.
-            </p>
-        {% endif %}
+          <p>
+            Exporting Key-Value pairs for {{ img_count }} Images may time-out using the link above.
+            Instead, you can export Key-Value pairs to a parquet file
+            (attached to the {{ target.dtype | capfirst }}) using an OMERO.script on the server: <br>
 
-        {% if table_anns %}
-            <h3>OMERO.tables:</h3>
-            <ul>
-            {% for ann in table_anns %}
-                <li>
-                    {{ ann.name }} (Created: {{ ann.created }} Size: {{ ann.size }} bytes)
-                    <a class="button_link" href="{{ ann.bff_url }}">Open table in Biofile Finder</a>
-                </li>
-            {% endfor %}
-            </ul>
-        {% else %}
-            <p>
-                No OMERO.table files currently attached to {{ target.dtype | capfirst }}:{{ target.id }}.
-            </p>
-        {% endif %}
-
-        <p>
-            To export Key-Value pairs to a parquet file, you can run an OMERO script:
             Select the {{ target.dtype | capfirst }} in the webclient, then use the OMERO.script menu and choose:
             <code>annotation scripts > Export to Biofile Finder</code>.
             Run the script with default input values, then refresh this page.
-        </p>
+          </p>
 
+          {% if bff_parquet_anns %}
+            <h3>Existing parquet files:</h3>
+            <ul>
+            {% for ann in bff_parquet_anns %}
+                <li>
+                    {{ ann.name }} (Created: {{ ann.created }} Size: {{ ann.size }} bytes)
+                    <a class="button_link" href="{{ ann.bbf_url }}">Open parquet in Biofile Finder</a>
+                </li>
+            {% endfor %}
+            </ul>
+          {% else %}
+            <p>
+                No parquet files currently attached to {{ target.dtype | capfirst }}:{{ target.id }}.
+            </p>
+          {% endif %}
+
+          {% if table_anns %}
+            <h3>OMERO.tables:</h3>
+            <ul>
+            {% for ann in table_anns %}
+              <li>
+                  {{ ann.name }} (Created: {{ ann.created }} Size: {{ ann.size }} bytes)
+                  <a class="button_link" href="{{ ann.bff_url }}">Open table in Biofile Finder</a>
+              </li>
+            {% endfor %}
+            </ul>
+          {% else %}
+            <p>
+              No OMERO.table files currently attached to {{ target.dtype | capfirst }}:{{ target.id }}.
+            </p>
+          {% endif %}
+
+          </div>
+        {% endif %}
         <h2>Using Biofile Finder</h2>
 
         <p>
-            <img src="{% static 'omero_biofilefinder/images/bff_open_file.png' %}" alt="Open File in Browser" style="float:left; margin-right: 15px; width: 300px; height: auto;">
 
-            In Biofile Finder, you can open selected Images in the OMERO webclient by using the
-            "Open File" button and choosing "Browser".
+          In Biofile Finder, you can open selected Images in the OMERO webclient by using the
+          "Open File" button and choosing "Browser".
         </p>
+        <img src="{% static 'omero_biofilefinder/images/bff_open_file.png' %}" alt="Open File in Browser" style="float:left; margin-right: 15px; width: 300px; height: auto;">
+      </div>
     </body>
 </html>
