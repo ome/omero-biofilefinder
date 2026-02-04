@@ -1,9 +1,9 @@
 
-[![Actions Status](https://github.com/will-moore/omero-biofilefinder/workflows/OMERO/badge.svg)](https://github.com/will-moore/omero-biofilefinder/actions)
+[![Actions Status](https://github.com/ome/omero-biofilefinder/workflows/OMERO/badge.svg)](https://github.com/ome/omero-biofilefinder/actions)
 
 
 OMERO BioFile Finder
-==================================
+====================
 
 This plugin supports opening a table of OMERO Images (from a Project, Dataset or Plate) in the BioFile Finder app https://bff.allencell.org/.
 
