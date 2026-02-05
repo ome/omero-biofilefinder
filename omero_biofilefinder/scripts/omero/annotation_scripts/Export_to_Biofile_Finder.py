@@ -169,7 +169,6 @@ def process_dataset_to_csv(conn, dataset, base_url):
         for image_id in image_ids:
             values = kvp.get(image_id, {})
             thumb_url = f"{base_url}webgateway/render_thumbnail/{image_id}"
-            image = conn.getObject("Image", image_id)
             # we end url with .png so that BFF enables open-with "Browser"
             image_url = f"{base_url}webclient/?show=image-{image_id}&_=.png"
             img_info = images_by_id.get(image_id)
@@ -181,7 +180,7 @@ def process_dataset_to_csv(conn, dataset, base_url):
             ]
             for key in keys:
                 row.append(",".join(values.get(key, [])))
-            row.append(image.creationEventDate().strftime("%Y-%m-%d %H:%M:%S.%Z"))
+            row.append(img_info.get("date") if img_info else "Not Found")
             writer.writerow(row)
 
     return export_file
