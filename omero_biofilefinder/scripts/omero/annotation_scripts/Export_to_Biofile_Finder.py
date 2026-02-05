@@ -121,21 +121,35 @@ def marshal_annotations(
     return annotations
 
 
-def process_dataset_to_csv(conn, dataset, base_url):
-    print(f"Processing dataset {dataset.id}")
-    export_file = f"Dataset:{dataset.id}_bff.csv"
+def process_container_to_csv(conn, dtype, obj_id, base_url):
+    print(f"Processing {dtype} {obj_id}")
+    export_file = f"{dtype}:{obj_id}_bff.csv"
     if os.path.exists(export_file):
         print(f"File {export_file} already exists, skipping...")
         return export_file
     image_ids = []
     images_by_id = {}
-    for image in dataset.listChildren():
-        image_ids.append(image.id)
-        images_by_id[image.id] = {
-            "dataset_name": dataset.getName(),
-            "name": image.getName(),
-            "date": image.creationEventDate().strftime("%Y-%m-%d %H:%M:%S.%Z"),
-        }
+    if dtype == "Dataset":
+        dataset = conn.getObject("Dataset", obj_id)
+        for image in dataset.listChildren():
+            image_ids.append(image.id)
+            images_by_id[image.id] = {
+                "parent_name": dataset.getName(),
+                "name": image.getName(),
+                "date": image.creationEventDate().strftime("%Y-%m-%d %H:%M:%S.%Z"),
+            }
+    elif dtype == "Plate":
+        plate = conn.getObject("Plate", obj_id)
+        for well in plate.listChildren():
+            for ws in well.listChildren():
+                image = ws.getImage()
+                image_ids.append(image.id)
+                images_by_id[image.id] = {
+                    "parent_name": plate.getName(),
+                    "name": image.getName(),
+                    "date": image.creationEventDate().strftime("%Y-%m-%d %H:%S.%Z"),
+                    "well": well.getWellPos(),
+                }
 
     # Collect all the Keys...
     keys = set()
@@ -158,9 +172,11 @@ def process_dataset_to_csv(conn, dataset, base_url):
                 kvp[image_id][key].append(value)
                 keys.add(key)
 
-    column_names = ["File Path", "File Name", "Dataset", "Thumbnail"]
+    column_names = ["File Path", "File Name", dtype]
+    if dtype == "Plate":
+        column_names.append("Well")
     column_names.extend(list(keys))
-    column_names.append("Uploaded")
+    column_names.extend(["Uploaded", "Thumbnail"])
 
     # write csv e.g "Dataset:1_bff.csv"...
     with open(export_file, mode="w") as csvfile:
@@ -175,12 +191,14 @@ def process_dataset_to_csv(conn, dataset, base_url):
             row = [
                 image_url,
                 img_info.get("name") if img_info else "Not Found",
-                img_info.get("dataset_name") if img_info else "Not Found",
-                thumb_url,
+                img_info.get("parent_name") if img_info else "Not Found",
             ]
+            if dtype == "Plate":
+                row.append(img_info.get("well") if img_info else "Not Found")
             for key in keys:
                 row.append(",".join(values.get(key, [])))
             row.append(img_info.get("date") if img_info else "Not Found")
+            row.append(thumb_url)
             writer.writerow(row)
 
     return export_file
@@ -194,26 +212,26 @@ def export_to_bff(conn, script_params):
     max_datasets = 500
     base_url = script_params["Base_URL"]
     csv_names = []
+    dtype = script_params["Data_Type"]
 
     conn.SERVICE_OPTS.setOmeroGroup(-1)
-    if script_params["Data_Type"] == "Project":
-        parent = conn.getObject("Project", script_params["IDs"][0])
-        group_id = parent.getDetails().group.id.val
-        conn.SERVICE_OPTS.setOmeroGroup(group_id)
+    parent = conn.getObject(dtype, script_params["IDs"][0])
+    group_id = parent.getDetails().group.id.val
+    conn.SERVICE_OPTS.setOmeroGroup(group_id)
+
+    if dtype == "Project":
         for obj_id in script_params["IDs"]:
             datasets = list(conn.getObjects("Dataset", opts={"project": obj_id}))
             datasets.sort(key=lambda x: x.id)
             datasets = datasets[:max_datasets]
             for dataset in datasets:
-                csv_name = process_dataset_to_csv(conn, dataset, base_url)
+                csv_name = process_container_to_csv(
+                    conn, "Dataset", dataset.id, base_url
+                )
                 csv_names.append(csv_name)
-    elif script_params["Data_Type"] == "Dataset":
-        parent = conn.getObject("Dataset", script_params["IDs"][0])
-        group_id = parent.getDetails().group.id.val
-        conn.SERVICE_OPTS.setOmeroGroup(group_id)
+    elif dtype in ["Dataset", "Plate"]:
         for obj_id in script_params["IDs"]:
-            dataset = conn.getObject("Dataset", obj_id)
-            csv_name = process_dataset_to_csv(conn, dataset, base_url)
+            csv_name = process_container_to_csv(conn, dtype, obj_id, base_url)
             csv_names.append(csv_name)
 
     # Finally, combine the csv files into a single file
@@ -224,7 +242,7 @@ def export_to_bff(conn, script_params):
     print("combined_table", combined_table)
     # Write the combined table back to a Parquet file
     oids = "_".join([str(i) for i in script_params["IDs"]])
-    export_file = f"{script_params['Data_Type']}_{oids}_bff.parquet"
+    export_file = f"{dtype}_{oids}_bff.parquet"
     pq.write_table(combined_table, export_file)
 
     if not parent.canAnnotate():
@@ -247,7 +265,7 @@ def run_script():
     scripting service, passing the required parameters.
     """
 
-    data_types = [rstring("Project"), rstring("Dataset")]
+    data_types = [rstring("Project"), rstring("Dataset"), rstring("Plate")]
 
     client = scripts.client(
         "Export_to_Biofile_Finder.py",
@@ -264,7 +282,7 @@ def run_script():
             "IDs",
             optional=False,
             grouping="2",
-            description="List of Dataset IDs or Image IDs",
+            description="List of Project, Dataset, or Plate IDs",
         ).ofType(rlong(0)),
         scripts.String(
             "Base_URL",
