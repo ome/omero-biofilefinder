@@ -60,7 +60,7 @@
             <a href="{{ bff_url}}" class="button_link">Open {{ target.dtype | capfirst }} in Biofile Finder</a>
         <p>
 
-        {% if img_count > 400 %}
+        {% if img_count > 400 or bff_parquet_anns %}
         <div style="border-radius: 10px; border: solid rgb(194, 193, 193) 1px; padding: 10px; background-color: #f0f0f0; margin-bottom: 20px;">
           <h2>Alternative option: Use a script to export Key-Value pairs</h2>
 
