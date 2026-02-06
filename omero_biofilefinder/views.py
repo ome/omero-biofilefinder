@@ -151,7 +151,7 @@ def open_with_bff(request, conn=None, **kwargs):
     table_anns = []
     for ann in obj.listAnnotations(ns=BFF_NAMESPACE):
         if ann.getFile() is not None:
-            pq_url = reverse("omero_biofilefinder_fileann", kwargs={"ann_id": ann.id})
+            pq_url = reverse("omero_biofilefinder_fileann", kwargs={"annId": ann.id})
             bff_parquet_anns.append(
                 {
                     "id": ann.id,
