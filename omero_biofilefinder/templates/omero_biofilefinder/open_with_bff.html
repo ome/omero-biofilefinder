@@ -53,7 +53,8 @@
             Image count: <b>{{ img_count }}</b>
         </p>
         <p>
-            BioFile Finder loads Key-Value pairs from Images in OMERO.
+            BioFile Finder loads a table of Images from OMERO with columns from Key-Value pairs,
+            creation times and Dataset or Well names.
         </p>
 
         <p>
@@ -67,7 +68,7 @@
           <p>
             Exporting Key-Value pairs for {{ img_count }} Images may time out using the link above.
             Instead, you can export Key-Value pairs to a Parquet file
-            (attached to the {{ target.dtype | capfirst }}) using an OMERO.script on the server: <br>
+            (which will be attached to the {{ target.dtype | capfirst }}) using an OMERO.script on the server: <br>
 
             Select the {{ target.dtype | capfirst }} in the webclient, then use the OMERO.script menu and choose:
             <code>annotation scripts > Export to BioFile Finder</code>.
