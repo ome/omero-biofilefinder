@@ -7,7 +7,7 @@ repos:
       - id: seed-isort-config
 
   - repo: https://github.com/PyCQA/isort
-    rev: 5.13.2
+    rev: 7.0.0
     hooks:
       - id: isort
         args: ["--profile", "black"]
@@ -51,15 +51,15 @@ repos:
           - --autofix
 
   - repo: https://github.com/PyCQA/flake8
-    rev: 7.2.0
+    rev: 7.3.0
     hooks:
       - id: flake8
         additional_dependencies: [
           flake8-blind-except,
           flake8-builtins,
           flake8-rst-docstrings,
-          flake8-logging-format,
-          setuptools,
+          # flake8-logging-format,
+          # setuptools,
         ]
         args: [
           # default black line length is 88
