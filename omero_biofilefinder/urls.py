@@ -24,7 +24,15 @@ from . import views
 urlpatterns = [
     # index 'home page' of the app
     path("", views.index, name="omero_biofilefinder_index"),
+    # entry-point - user chooses how to open BFF ?project=1 or ?dataset=2 etc
     path("open_with_bff", views.open_with_bff, name="omero_biofilefinder_openwith"),
+    # App page shows bff app in an iframe - page handles open-with, annotation etc
+    path("app", views.app_page, name="omero_biofilefinder_app"),
+    path(
+        "handle_annotation",
+        views.handle_annotation,
+        name="omero_biofilefinder_handle_annotation",
+    ),
     # when BFF loads a parquet file, the url needs to end with .parquet
     path(
         "fileann/<int:ann_id>/omero.parquet",
@@ -37,7 +45,7 @@ urlpatterns = [
         name="omero_biofilefinder_table_to_parquet",
     ),
     re_path(
-        r"^(?P<obj_type>(project|dataset|plate))/(?P<obj_id>[0-9]+)$",
+        r"^to_csv/(?P<obj_type>(project|dataset|plate|image))/(?P<obj_id>[0-9]+)$",
         views.omero_to_csv,
         name="omero_biofilefinder_csv",
     ),

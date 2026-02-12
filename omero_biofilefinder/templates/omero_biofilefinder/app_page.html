@@ -1,0 +1,295 @@
+<html>
+
+<head>
+    <title>Biofile Finder App</title>
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            width: 100%;
+            font-family: Arial, sans-serif;
+        }
+
+        form>div {
+            margin: 10px 0;
+        }
+        button {
+            border: none;
+            background: darkblue;
+            padding: 6px;
+            border-radius: 6px;
+            color: white;
+        }
+        button[type='submit'] {
+            background: darkgreen;
+        }
+
+        .fullpage {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            flex-direction: row;
+        }
+        /* expand to fill available space */
+        .app_container {
+            flex: 1;
+            box-shadow: 5px 10px 20px rgba(0, 0, 0, 0.7);
+        }
+        #selection_panel {
+            flex: 0 0 auto; /* fixed width sidebar */
+            position: relative;
+            transition: width 0.3s ease-in-out;
+            width: 300px;
+        }
+        #selection_panel.collapsed {
+            width: 0;
+        }
+        .fading_content {
+            transition: opacity 0.3s ease-in-out;
+            width: 300px;
+            height: 100%;
+            box-sizing: border-box;
+            position: absolute;
+            left: 0;
+            top: 0;
+            padding: 20px;
+        }
+        .collapsed .fading_content {
+            opacity: 0;
+        }
+
+        iframe {
+            border: none;
+            width: 100%;
+            height: 100%;
+        }
+        #collapse_button {
+            position: absolute;
+            color: darkblue;
+            padding: 10px;
+            background: white;
+            border-radius: 20px;
+            left: 10px;
+            bottom: 10px;
+            transition: left 0.3s ease-in-out;
+            font-size: 16px;
+        }
+        .collapsed #collapse_button {
+            left: -110px;
+        }
+        #collapse_button span {
+            color: white;
+            position: absolute;
+            right: -10px;
+            bottom: calc(100% - 10px);
+            height: 20px;
+            background: red;
+            border-radius: 10px;
+            padding: 5px 4px 1px 4px;
+        }
+
+    </style>
+</head>
+<body>
+    <div class="fullpage">
+        <div class="app_container">
+            <iframe src="{{ bff_url }}"></iframe>
+        </div>
+        <div id="selection_panel">
+
+            <div class="fading_content">
+                <h2 id="header">Selected Files</h2>
+
+                <a href="#" target="_blank" id="webclient_link">Open in Web Client</a> <br>
+                <label title="Broadcast selection changes to other windows">
+                    <input type="checkbox" id="broadcast_selection">
+                    Broadcast selection
+                </label>
+                <hr>
+
+                <details>
+                    <summary>Add Tags:</summary>
+                    <form id="tagsForm" action="{% url 'omero_biofilefinder_handle_annotation' %}" method="POST">
+                        <input type="hidden" name="objectIds" readonly>
+                        <input type="hidden" name="objectType" readonly>
+                        <div>
+                            <label for="newTagText">New Tag:</label>
+                            <input type="text" id="newTagText" name="new_tag" placeholder="New Tag text">
+                        </div>
+                        <div>
+                            Existing Tag: <button id="loadTags" type="button">Load Tags</button>
+                            <div id="existingTagsContainer" style="max-height: 150px; overflow-y: auto; padding: 5px; margin-top: 5px;">
+                                <!-- Existing tags will be loaded here -->
+                            </div>
+                        </div>
+                        <div style="text-align: right;">
+                            <button type="submit">Submit</button>
+                        </div>
+                        <!-- csrf token -->
+                        <input type="hidden" name="csrfmiddlewaretoken" value="{{ csrf_token }}">
+                    </form>
+                </details>
+
+                <hr>
+
+                <details>
+                    <summary>Add Key-Value Pairs:</summary>
+                    <form id="mapForm" action="{% url 'omero_biofilefinder_handle_annotation' %}" method="POST">
+                        <input type="hidden" name="objectIds" readonly>
+                        <input type="hidden" name="objectType" readonly>
+                        <div>
+                            <textarea name="maps" placeholder='key1: value1 &#10;key2: value2' style="width: 100%; height: 100px;"></textarea>
+                        </div>
+                        <div style="text-align: right;">
+                            <button type="submit">Submit</button>
+                        </div>
+                        <!-- csrf token -->
+                        <input type="hidden" name="csrfmiddlewaretoken" value="{{ csrf_token }}">
+                    </form>
+                </details>
+
+                <hr>
+
+            </div>
+
+
+
+            <button id="collapse_button">
+                Annotate
+                <span id="bff_selected_count">0</span></button>
+        </div>
+    </div>
+
+    <script>
+        const WEBCLIENT_URL = "{% url 'webindex' %}";
+        const GROUP_ID = "{{ group_id }}";
+
+        const selectshapes_bc = new BroadcastChannel("shape_selection");
+        const selectimages_bc = new BroadcastChannel("image_selected");
+
+        // Listen for messages from Biofile Finder...
+        const bc = new BroadcastChannel('bff.file_selection');
+        bc.onmessage = (event) => {
+            const data = event.data.data;
+
+            console.log('data', data);
+
+            if (data.length === 0) {
+                document.getElementById('bff_selected_files').innerHTML = 'No files selected';
+                return;
+            }
+
+            // Check for ROI and Shape IDs, then Image ID...
+            const roiIdCol = data[0].findIndex(ann => ann.name === "Roi ID");
+            const shapeIdCol = data[0].findIndex(ann => ann.name === "Shape ID");
+            // Find "Image ID" column
+            const imageIdCol = data[0].findIndex(ann => ann.name === "Image ID");
+            if (imageIdCol === -1 && roiIdCol === -1) {
+                console.error('No Image ID column or Roi ID column');
+                return;
+            }
+
+            let objectIds = [];
+            let shapeIds = [];
+            let dtype = "";
+            if (imageIdCol > -1) {
+                objectIds = data.map(row => row[imageIdCol].values[0]);
+                dtype = "Image";
+            } else {
+                // use ROI IDs
+                objectIds = data.map(row => row[roiIdCol].values[0]);
+                shapeIds = data.map(row => row[shapeIdCol].values[0]);
+                dtype = "Roi";
+            }
+
+            console.log('objectIds', objectIds);
+            let s = objectIds.length === 1 ? "" : "s";
+
+            document.getElementById('bff_selected_count').innerHTML = objectIds.length;
+            document.getElementById('header').innerHTML = `${objectIds.length} ${dtype}${s} selected`;
+            document.getElementById('header').title = objectIds.join(", ");
+
+            // webclient link
+            const linkIds = dtype.toLowerCase() + "-" + objectIds.join("|" + dtype.toLowerCase() + "-");
+            document.getElementById('webclient_link').href = WEBCLIENT_URL + "?show=" + linkIds;
+
+            // annotation form
+            document.querySelectorAll('input[name="objectIds"]').forEach(input => {
+                input.value = objectIds.join(',');
+            });
+            document.querySelectorAll('input[name="objectType"]').forEach(input => {
+                input.value = dtype;
+            });
+
+            // IF broadcast_selection checked, broadcast to "shape_selection" channel
+            if (document.getElementById('broadcast_selection').checked) {
+                // TODO: see https://github.com/ome/omero-iviewer/pull/508 - This API will change!
+                if (dtype == "Roi") {
+                    const roiId = objectIds[0];
+                    const shapeId = shapeIds[0];
+                    console.log("Broadcasting shape selection...", `${roiId}:${shapeId}`);
+                    selectshapes_bc.postMessage({"id": `${roiId}:${shapeId}`});
+                } else {
+                    console.log("Broadcasting image selection...", objectIds[0]);
+                    selectimages_bc.postMessage(parseInt(objectIds[0]));
+                }
+            }
+        }
+
+        document.getElementById('loadTags').onclick = (event) => {
+            console.log("Load Tags...", event);
+            event.preventDefault();
+            let url = `${WEBCLIENT_URL}api/tags/?page=0&group=${GROUP_ID}`;
+            fetch(url)
+                .then(response => response.json())
+                .then(data => {
+                    console.log("Tags:", data);
+                    let tags = data.tags.filter(tag => {
+                        return tag.childCount == 0 && tag.permsCss.includes("canAnnotate");
+                    });
+                    console.log("Filtered Tags:", tags);
+                    let html = tags.map(tag => {
+                        return `<div>
+                            <label>
+                                <input type="checkbox" name="tag" value="${tag.id}">
+                                ${tag.value}
+                            </label>
+                        </div>`;
+                    }).join("");
+                    document.getElementById('existingTagsContainer').innerHTML = html;
+                })
+                .catch(error => {
+                    console.error("Error fetching tags:", error);
+                });
+        };
+
+        // Handle form submit
+        const handleSubmit = (event) => {
+            event.preventDefault();
+            const formData = new FormData(event.target);
+            fetch("{% url 'omero_biofilefinder_handle_annotation' %}", {
+                method: "POST",
+                body: formData,
+                headers: {
+                    "X-CSRFToken": formData.get("csrfmiddlewaretoken"),
+                },
+            }).then(rsp => rsp.json().then(response => {
+                console.log("Response:", response);
+                console.log("Annotations submitted successfully");
+            }).catch(err => {
+                console.error("Error parsing response", err);
+            }));
+        };
+        // bind to both forms
+        document.getElementById('tagsForm').onsubmit = handleSubmit;
+        document.getElementById('mapForm').onsubmit = handleSubmit;
+
+        // Click handler for collapse button
+        document.getElementById('collapse_button').onclick = () => {
+            const panel = document.getElementById('selection_panel');
+            panel.classList.toggle('collapsed');
+        };
+    </script>
+</body>
+</html>

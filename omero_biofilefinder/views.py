@@ -22,12 +22,16 @@ import json
 import urllib
 from collections import defaultdict
 
+import omero
+
 # TODO: try/except for pyarrow import
 import pyarrow as pa
 import pyarrow.parquet as pq
-from django.http import Http404, HttpResponse
+from django.http import Http404, HttpResponse, JsonResponse
 from django.shortcuts import render
 from django.urls import reverse
+from omero import ValidationException
+from omero.rtypes import rstring, unwrap
 from omeroweb.decorators import login_required
 from omeroweb.webclient.tree import marshal_annotations
 from omeroweb.webgateway.views import perform_table_query
@@ -76,20 +80,22 @@ def open_with_bff(request, conn=None, **kwargs):
     we can use that instead of the csv file.
     """
 
-    for obj_type in ["project", "plate", "dataset"]:
+    for obj_type in ["project", "plate", "dataset", "image"]:
         obj_id = request.GET.get(obj_type)
         if obj_id is not None:
             break
 
     if obj_id is None:
-        raise Http404("Use ?project=1 or ?screen=1")
+        raise Http404("Use e.g. ?project=1, for Project, Dataset, Image or Plate")
     else:
         obj_id = int(obj_id)
 
-    csv_url = reverse(
-        "omero_biofilefinder_csv", kwargs={"obj_id": obj_id, "obj_type": obj_type}
-    )
-    bff_url = get_bff_url(request, csv_url, "omero.csv", ext="csv")
+    # csv_url = reverse(
+    #     "omero_biofilefinder_csv", kwargs={"obj_id": obj_id, "obj_type": obj_type}
+    # )
+    # bff_url = get_bff_url(request, csv_url, "omero.csv", ext="csv")
+
+    bff_url = reverse("omero_biofilefinder_app") + f"?{obj_type}={obj_id}"
 
     # We want to pick some columns to show in the BFF app.
     # Need to know a few Keys from Key-Value pairs.
@@ -118,23 +124,26 @@ def open_with_bff(request, conn=None, **kwargs):
             if len(image_ids) > 5:
                 break
 
-    if len(image_ids) == 0:
-        return HttpResponse(f"No images found in {obj_type}:{obj_id}")
+    # Handle single Image case - load annotation for ROIs (or shapes?!)
+
+    # if len(image_ids) == 0:
+    #     return HttpResponse(f"No images found in {obj_type}:{obj_id}")
 
     # Get KVP keys for 5 images...
-    anns, experimenters = marshal_annotations(conn, image_ids=image_ids, ann_type="map")
-    keys = defaultdict(int)
-    for ann in anns:
-        for key, val in ann["values"]:
-            keys[key] += 1
-    # Sort keys by number of occurrences and take the top 3
-    sorted_keys = sorted(keys.keys(), key=lambda x: keys[x], reverse=True)
-    # Show max 5 columns (4 keys)
-    col_names = ["File Name", "Dataset"] + sorted_keys[:3]
-    col_width = 1 / len(col_names)
-    # column query e.g. "File Name:0.25,Dataset:0.25,Key1:0.25,Key2:0.25"
-    col_query = ",".join([f"{name}:{col_width}:.2f" for name in col_names])
-    bff_url += "&c=" + col_query
+    # anns, experimenters = marshal_annotations(conn, image_ids=image_ids,
+    # ann_type="map")
+    # keys = defaultdict(int)
+    # for ann in anns:
+    #     for key, val in ann["values"]:
+    #         keys[key] += 1
+    # # Sort keys by number of occurrences and take the top 3
+    # sorted_keys = sorted(keys.keys(), key=lambda x: keys[x], reverse=True)
+    # # Show max 5 columns (4 keys)
+    # col_names = ["File Name", "Dataset"] + sorted_keys[:3]
+    # col_width = 1 / len(col_names)
+    # # column query e.g. "File Name:0.25,Dataset:0.25,Key1:0.25,Key2:0.25"
+    # col_query = ",".join([f"{name}:{col_width}:.2f" for name in col_names])
+    # bff_url += "&c=" + col_query
 
     # If there is a parquet file already attached to the project, we can
     # use that instead of the csv file.
@@ -190,6 +199,8 @@ def omero_to_csv(request, obj_type, obj_id, conn=None, **kwargs):
         raise Http404("{obj_type}:{obj_id} Not Found")
 
     image_ids = []
+    # roi_ids = []
+    shapes = []
     parent_names_by_iid = {}
     parent_colname = "Dataset"
 
@@ -209,10 +220,32 @@ def omero_to_csv(request, obj_type, obj_id, conn=None, **kwargs):
                 image = ws.getImage()
                 image_ids.append(image.id)
                 parent_names_by_iid[image.id] = well.getWellPos()
+    elif obj_type == "image":
+        # Can't load ROI annotations yet - see https://github.com/ome/omero-web/pull/635
+        raise Http404("Image object type not supported for CSV export")
+        # Load ROIs...
+        # roi_service = conn.getRoiService()
+        # results = roi_service.findByImage(obj.id, None)
+        # for r in results.rois:
+        #     parent_names_by_iid[obj.id] = f"ROI:{obj.id}"  # TODO: check text value
+        #     # for now, just get first shape ID for each ROI
+        #     shps = [s for s in r.copyShapes() if s.id is not None]
+        #     if len(shps) > 0:
+        #         roi_ids.append(r.id.val)
+        #         shapes.append(shps[0])
 
     # We use page=-1 to avoid pagination (default is 500)
+    # obj_ids = image_ids if len(image_ids) > 0 else roi_ids
+    obj_ids = image_ids
+    dtype = "Image" if len(image_ids) > 0 else "Roi"
+
+    # Load MAP Annotations for images or ROIs
     anns, experimenters = marshal_annotations(
-        conn, image_ids=image_ids, ann_type="map", page=-1
+        conn,
+        image_ids=image_ids,
+        ann_type="map",
+        page=-1,
+        # roi_ids=roi_ids
     )
 
     # Get all the Keys...
@@ -221,42 +254,86 @@ def omero_to_csv(request, obj_type, obj_id, conn=None, **kwargs):
         for key_val in ann["values"]:
             keys.add(key_val[0])
 
-    # Add values to dict {image_id: {key: [list, of, values]}}
+    # Add values to dict {object_id: {key: [list, of, values]}}
     kvp = {}
     for ann in anns:
-        image_id = ann["link"]["parent"]["id"]
-        if image_id not in kvp:
-            kvp[image_id] = defaultdict(list)
+        obj_id = ann["link"]["parent"]["id"]
+        if obj_id not in kvp:
+            kvp[obj_id] = defaultdict(list)
         for key_val in ann["values"]:
             key = key_val[0]
             value = key_val[1]
-            kvp[image_id][key].append(value)
+            kvp[obj_id][key].append(value)
 
-    column_names = ["File Path", "File Name", parent_colname, "Thumbnail"]
+    # Load TAGS...
+    tag_anns, experimenters = marshal_annotations(
+        conn,
+        image_ids=image_ids,
+        ann_type="tag",
+        page=-1,
+        # roi_ids=roi_ids,
+    )
+    # organise by object id
+    tags = defaultdict(list)
+    for ann in tag_anns:
+        obj_id = ann["link"]["parent"]["id"]
+        if obj_id not in tags:
+            tags[obj_id] = []
+        tags[obj_id].append(ann["textValue"])
+
+    # Build the Table....
+    column_names = ["File Path", f"{dtype} ID", "Name", "Tags"]
+    if dtype == "Roi":
+        column_names.append("Shape ID")
+        column_names.append("Shape Type")
+    else:
+        column_names.append(parent_colname)
     column_names.extend(list(keys))
-    column_names.append("Uploaded")
+    column_names.extend(["Uploaded", "Thumbnail"])
 
     # write csv to return as http response
     with io.StringIO() as csvfile:
         writer = csv.writer(csvfile)
         writer.writerow(column_names)
-        for image_id in image_ids:
-            values = kvp.get(image_id, {})
-            thumb_url = reverse("webgateway_render_thumbnail", kwargs={"iid": image_id})
-            thumb_url = request.build_absolute_uri(thumb_url)
-            image = conn.getObject("Image", image_id)
-            image_url = request.build_absolute_uri(reverse("webindex"))
-            # we end url with .png so that BFF enables open-with "Browser"
-            image_url += f"?show=image-{image_id}&_=.png"
+        for row_idx, obj_id in enumerate(obj_ids):
+            values = kvp.get(obj_id, {})
+            thumb_url = ""
+            obj_name = ""
+            object_url = request.build_absolute_uri(reverse("webindex"))
+            obj = conn.getObject(dtype, obj_id)
+            if dtype == "Roi":
+                shape = shapes[row_idx]
+                thumb_url = reverse(
+                    "webgateway_render_shape_thumbnail",
+                    kwargs={"shapeId": shape.id.val},
+                )
+                object_url += f"?show=roi-{obj_id}&_=.png"
+                obj_name = obj.getName() or unwrap(shape.getTextValue()) or ""
+            else:
+                thumb_url = reverse(
+                    "webgateway_render_thumbnail", kwargs={"iid": obj_id}
+                )
+                obj_name = obj.getName() if obj else "Not Found"
+                # we end url with .png so that BFF enables open-with "Browser"
+                object_url += f"?show=obj-{obj_id}&_=.png"
+
             row = [
-                image_url,
-                image.getName() if image else "Not Found",
-                parent_names_by_iid.get(image_id, "Not Found"),
-                thumb_url,
+                object_url,
+                obj_id,
+                obj_name,
+                ",".join(tags.get(obj_id, [])),
             ]
+            if dtype == "Roi":
+                row.append(shape.id.val)
+                row.append(type(shape).__name__[:-1])  # remove trailing I
+            else:
+                row.append(parent_names_by_iid.get(obj_id, "Not Found"))
+
             for key in keys:
                 row.append(",".join(values.get(key, [])))
-            row.append(image.creationEventDate().strftime("%Y-%m-%d %H:%M:%S.%Z"))
+            # Add last columns
+            row.append(obj.creationEventDate().strftime("%Y-%m-%d %H:%M:%S.%Z"))
+            row.append(request.build_absolute_uri(thumb_url))
             writer.writerow(row)
 
         response = HttpResponse(csvfile.getvalue(), content_type="text/csv")
@@ -336,6 +413,113 @@ def table_to_parquet(request, ann_id, conn=None, **kwargs):
             f'attachment; filename="omero_table_{fileid}.parquet"'
         )
         return response
+
+
+@login_required()
+def app_page(request, conn=None, **kwargs):
+
+    # Handle e.g. ?dataset=1 - iframe app loads KV pairs on the fly
+    # or e.g. ?file=2 - load file annotation: OMERO.table -> parquet
+    # or load parquet file directly
+
+    bff_url = None
+    group_id = None
+    for obj_type in ["project", "plate", "dataset", "image"]:
+        obj_id = request.GET.get(obj_type)
+        if obj_id is not None:
+            obj = conn.getObject(obj_type, int(obj_id))
+            if obj is None:
+                raise Http404(f"{obj_type}:{obj_id} Not Found")
+            group_id = obj.getDetails().group.id.val
+            csv_url = reverse(
+                "omero_biofilefinder_csv",
+                kwargs={"obj_id": obj_id, "obj_type": obj_type},
+            )
+            bff_url = get_bff_url(request, csv_url, "omero.csv", ext="csv")
+            break
+
+    context = {
+        "bff_url": bff_url,
+        "group_id": group_id,
+    }
+    return render(request, "omero_biofilefinder/app_page.html", context)
+
+
+@login_required()
+def handle_annotation(request, conn=None, **kwargs):
+    update_service = conn.getUpdateService()
+
+    # Handle annotation submission
+    if request.method == "POST":
+        form_data = request.POST
+
+        object_ids = [int(iid) for iid in form_data.get("objectIds", "").split(",")]
+        if len(object_ids) == 0:
+            return JsonResponse(
+                {"status": "error", "message": "No objectIds"}, status=400
+            )
+
+        obj_type = request.POST.get("objectType", "Image")
+        print("Object IDs:", object_ids)
+        # Get group from first object
+        obj = conn.getObject(obj_type, int(object_ids[0]))
+        if obj is None:
+            raise Http404(f"{obj_type}:{object_ids[0]} Not Found")
+        group_id = obj.getDetails().group.id.val
+        conn.SERVICE_OPTS.setOmeroGroup(group_id)
+
+        new_tag = form_data.get("new_tag", "")
+        print("New Tag:", new_tag)
+
+        annotations = []
+
+        maps_text = form_data.get("maps", "")
+        if maps_text:
+            kvps = []
+            for line in maps_text.splitlines():
+                if ":" in line:
+                    key, value = line.split(":", 1)
+                    kvps.append([key.strip(), value.strip()])
+            if len(kvps) > 0:
+                ann = omero.gateway.MapAnnotationWrapper(conn)
+                ann.setValue(kvps)
+                ann.setNs(rstring("omero.biofilefinder.maps"))
+                ann.save()
+                print("Created MapAnnotation:", ann.id)
+                annotations.append(omero.model.MapAnnotationI(ann.id, False))
+
+        if new_tag:
+            tag = omero.model.TagAnnotationI()
+            tag.textValue = rstring(new_tag)
+            tag = update_service.saveAndReturnObject(tag)
+            print("Created Tag:", tag.id)
+            annotations.append(tag)
+
+        tags = form_data.getlist("tag", [])
+        for tag_id in tags:
+            tag = omero.model.TagAnnotationI(tag_id, False)
+            annotations.append(tag)
+
+        # Link existing and new Tags to Images
+        for ann in annotations:
+            for object_id in object_ids:
+                if obj_type == "Image":
+                    link = omero.model.ImageAnnotationLinkI()
+                    link.parent = omero.model.ImageI(object_id, False)
+                else:
+                    link = omero.model.RoiAnnotationLinkI()
+                    link.parent = omero.model.RoiI(object_id, False)
+                link.child = ann
+
+                try:
+                    link = update_service.saveAndReturnObject(link)
+                    print("Linked Annotation with Link:", link.id.val)
+                except ValidationException as e:
+                    # E.g. if link aready exists
+                    print("Error linking Annotation to Image:", e)
+        # Process the form data as needed
+        return JsonResponse({"status": "success"})
+    return JsonResponse({"status": "error"}, status=400)
 
 
 def app(request, url, **kwargs):
