@@ -22,6 +22,11 @@
     </head>
 
     <body>
+        {% if is_admin %}
+          <a href="{% url 'omero_biofilefinder_admin' %}">Admin (script upload)</a>
+          <hr>
+        {% endif %}
+
         <h1>Open {{ target.dtype | capfirst }}:{{ target.id }} with Biofile Finder...</h1>
 
         <p>
@@ -46,6 +51,20 @@
         <p>
             For larger numbers of Images, you can export the Key-Value pairs to a parquet file
             (attached to the {{ target.dtype | capfirst }}) using an OMERO.script.
+        </p>
+
+        <p>
+        {% if script_id > 0 %}
+          <form id="run_script" method="post" action="{% url 'script_run' script_id %}" >
+            {% csrf_token %}
+            IDs: <input type="text" name="IDs" value="{{ target.id }}" size="10"/>
+            Data_Type: <input type="text" name="Data_Type" value="{{ target.dtype | capfirst }}" />
+            <button type="submit">Run Script</button>
+          </form>
+        {% else %}
+            The "Export to Biofile Finder" script is not currently installed on this server.
+            Please contact your OMERO administrator.
+        {% endif %}
         </p>
 
         {% if bff_parquet_anns %}
@@ -96,4 +115,56 @@
             "Open File" button and choosing "Browser".
         </p>
     </body>
+
+    <script>
+
+      async function sendData(form) {
+        const formData = new FormData(form);
+        console.log("Sending form data...", formData);
+        const url = form.action;
+        // disable submit button
+        const submitButton = form.querySelector('button[type="submit"]');
+        if (submitButton) {
+          submitButton.disabled = true;
+          submitButton.innerText = "Building table...";
+        }
+
+        try {
+          const response = await fetch(url, {
+            method: "POST",
+            // Set the FormData instance as the request body
+            body: formData,
+          });
+          const rspJson = await response.json();
+          submitButton.innerText = "Done";
+          console.log(rspJson);
+          if (rspJson.Error) {
+            alert("Error: " + rspJson.Error);
+          } else {
+            alert("Script running. Refresh page to check for results.");
+          }
+        } catch (e) {
+          console.error(e);
+        }
+      }
+
+      // Form for Admins to upload the script
+      const uploadForm = document.querySelector("#upload_script");
+      if (uploadForm) {
+        uploadForm.addEventListener("submit", (event) => {
+          event.preventDefault();
+          sendData(uploadForm);
+        });
+      }
+
+      // Form to run the script
+      const runscriptForm = document.querySelector("#run_script");
+      if (runscriptForm) {
+        runscriptForm.addEventListener("submit", (event) => {
+          event.preventDefault();
+          sendData(runscriptForm);
+        });
+      }
+    </script>
+
 </html>

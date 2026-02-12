@@ -1,0 +1,89 @@
+<html>
+  <head>
+    <title>Open with Biofile Finder</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        margin: 20px;
+        color: #333;
+      }
+    </style>
+  </head>
+
+  <body>
+    <h2>Admin Page</h2>
+
+    <p>
+      Upload or replace the OMERO.script used to create Biofile Finder parquet
+      files as File Annotations.
+    </p>
+
+    <p>
+      This script has a dependency on pyarrow installed in the OMERO.server
+      python environment.
+    </p>
+
+    <p style="font-weight: bold;">
+      {% if script_id > 0 %}Script is uploaded with ID:
+      {{ script_id }} {% else %}No script currently uploaded. {% endif %}
+    </p>
+    <form
+      id="upload_script"
+      method="post"
+      action="{% url 'bff_upload_omero_script' %}"
+    >
+      {% csrf_token %}
+      <button type="submit">
+        {% if script_id > 0 %}
+          Replace Script
+        {% else %}
+          Upload Script
+        {% endif %}
+      </button>
+    </form>
+  </body>
+
+  <script>
+    async function sendData(form) {
+      const formData = new FormData(form);
+      console.log("Sending form data...", formData);
+      const url = form.action;
+      // disable submit button
+      const submitButton = form.querySelector('button[type="submit"]');
+      if (submitButton) {
+        submitButton.disabled = true;
+        submitButton.innerText = "Uploading...";
+      }
+
+      try {
+        const response = await fetch(url, {
+          method: "POST",
+          // Set the FormData instance as the request body
+          body: formData,
+        });
+        const rspJson = await response.json();
+        submitButton.innerText = "Done";
+        console.log(rspJson);
+        if (rspJson.Error) {
+          alert("Error: " + rspJson.Error);
+        } else if (rspJson.Message) {
+          alert("Success: " + rspJson.Message);
+          // Reload the page to update
+          window.location.reload();
+        }
+      } catch (e) {
+        console.error(e);
+        alert("Error: see console for details.");
+      }
+    }
+
+    // Form for Admins to upload the script
+    const uploadForm = document.querySelector("#upload_script");
+    if (uploadForm) {
+      uploadForm.addEventListener("submit", (event) => {
+        event.preventDefault();
+        sendData(uploadForm);
+      });
+    }
+  </script>
+</html>

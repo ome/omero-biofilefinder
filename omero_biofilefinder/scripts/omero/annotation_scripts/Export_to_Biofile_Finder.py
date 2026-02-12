@@ -40,6 +40,7 @@ from omero.gateway import BlitzGateway
 from omero.rtypes import rlong, robject, rstring
 from pyarrow import csv as pa_csv
 
+VERSION = "0.1.0.dev0"
 BFF_NAMESPACE = "omero_biofilefinder.parquet"
 
 
@@ -276,6 +277,9 @@ def run_script():
             ),
             default="/",
         ),
+        # This allows clients to query the script version
+        # by listing script params and getting default value
+        scripts.String("VERSION", default=VERSION),
         authors=["William Moore", "OME Team"],
         institutions=["University of Dundee"],
     )
