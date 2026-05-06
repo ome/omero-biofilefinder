@@ -16,7 +16,7 @@ http request. If the BFF app page is refreshed, it will re-load the Key-Value pa
 
 However, for much larger numbers of Images, the time to load Key-Value pairs could become too long for
 a single http request. In this case, there is the option to use a server-side OMERO.script to export
-the Key-Value pairs to a `parquet` file, attached to the Project. Then, BFF can load
+the Key-Value pairs to a `Parquet` file, attached to the Project. Then, BFF can load
 the `Parquet` file directly. You will need an Admin to install the
 script on the server (see below) and it has a dependency of the `pyarrow` library.
 
