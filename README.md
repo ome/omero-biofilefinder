@@ -18,7 +18,7 @@ However, for much larger numbers of Images, the time to load Key-Value pairs cou
 a single http request. In this case, there is the option to use a server-side OMERO.script to export
 the Key-Value pairs to a `Parquet` file, attached to the Project. Then, BFF can load
 the `Parquet` file directly. You will need an Admin to install the
-script on the server (see below) and it has a dependency of the `pyarrow` library.
+script on the server (see below) and it has the `pyarrow` library as a dependency.
 
 
 Data in webclient - images and Key-Value pairs are from idr0021.
