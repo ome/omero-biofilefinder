@@ -38,6 +38,15 @@
                 max-width: 800px;
                 margin: 0 auto;
             }
+            .alternative_option {
+                border-radius: 10px;
+                border: solid rgb(194, 193, 193) 1px;
+                padding: 10px;
+                background-color: #f0f0f0; margin-bottom: 20px;
+            }
+            ul {
+                padding-left: 20px;
+            }
         </style>
     </head>
 
@@ -53,7 +62,7 @@
             Image count: <b>{{ img_count }}</b>
         </p>
         <p>
-            BioFile Finder loads a table of Images from OMERO with columns from Key-Value pairs,
+            BioFile Finder loads a table of Images from OMERO with columns created from Key-Value pairs,
             creation times and Dataset or Well names.
         </p>
 
@@ -62,7 +71,7 @@
         <p>
 
         {% if img_count > 400 or bff_parquet_anns %}
-        <div style="border-radius: 10px; border: solid rgb(194, 193, 193) 1px; padding: 10px; background-color: #f0f0f0; margin-bottom: 20px;">
+        <div class="alternative_option">
           <h2>Alternative option: Use a script to export Key-Value pairs</h2>
 
           <p>
@@ -90,9 +99,15 @@
                 No Parquet files currently attached to {{ target.dtype | capfirst }}:{{ target.id }}.
             </p>
           {% endif %}
+        </div>
 
+        <div class="alternative_option">
+          <h2>Alternative option: open an OMERO.table</h2>
+          <p>
+            OMERO.tables can be opened in BioFile Finder.
+            They will be dynamically converted to CSV files when loaded by BioFile Finder.
+          </p>
           {% if table_anns %}
-            <h3>OMERO.tables:</h3>
             <ul>
             {% for ann in table_anns %}
               <li>

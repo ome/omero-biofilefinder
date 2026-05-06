@@ -28,6 +28,7 @@ import pyarrow.parquet as pq
 from django.http import Http404, HttpResponse
 from django.shortcuts import render
 from django.urls import reverse
+from omero.gateway import FileAnnotationWrapper
 from omeroweb.decorators import login_required
 from omeroweb.webclient.tree import marshal_annotations
 from omeroweb.webgateway.views import perform_table_query
@@ -164,7 +165,22 @@ def open_with_bff(request, conn=None, **kwargs):
                     ),
                 }
             )
-    for ann in obj.listAnnotations(ns=TABLE_NAMESPACE):
+    # Same logic as listing OMERO.tables in webclient...
+    anns = [
+        ann for ann in obj.listAnnotations() if isinstance(ann, FileAnnotationWrapper)
+    ]
+
+    def is_table_ann(ann):
+        if ann.getNs() == TABLE_NAMESPACE:
+            return True
+        file = ann.getFile()
+        if file is not None and file.getMimetype() == "OMERO.tables":
+            return True
+        return False
+
+    anns = [ann for ann in anns if is_table_ann(ann)]
+
+    for ann in anns:
         table_pq_url = reverse(
             "omero_biofilefinder_table_to_parquet", kwargs={"ann_id": ann.id}
         )
