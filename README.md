@@ -70,12 +70,13 @@ Now restart your `omero-web` server.
 Export script
 -------------
 
-We use an OMERO.server script to build a `parquet` file that is read by BioFile Finder.
+We use an OMERO.server script to build a `Parquet` file that is read by BioFile Finder.
+The script depends on `pyarrow` library which should first be installed in the OMERO.server python environment.
 
-    $ cd omero_biofilefinder/scripts
-    $ omero script upload --official omero/annotation_scripts/Export_to_Biofile_Finder.py
+The script can be uploaded by logging in to the webclient as an Admin and going to `biofilefinder/admin` where
+there is an `Upload Script` button. This uploads the script from the web app to the OMERO.server.
 
-The script can also be run locally (without using the OMERO scripting service). This will use `cli_login` to login
+Experimental: The script can also be run locally (without using the OMERO scripting service). This will use `cli_login` to login
 to your chosen OMERO server. The exported data will get written to your current directory (where you're running the script)
 and the parquet file will only get attached to the target (e.g. Project or Dataset) if you can annotate it.
 
