@@ -20,6 +20,9 @@ the Key-Value pairs to a `Parquet` file, attached to the Project. Then, BFF can 
 the `Parquet` file directly. You will need an Admin to install the
 script on the server (see below) and it has the `pyarrow` library as a dependency.
 
+A third option is provided by the ability of OMERO BioFile Finder to read `OMERO.tables` and convert
+them into compatible `Parquet` files on the fly.
+
 
 Data in webclient - images and Key-Value pairs are from idr0021.
 <img width="1256" alt="Image" src="https://github.com/user-attachments/assets/8124429d-ef3e-497b-baa2-9d537ac98357" />
