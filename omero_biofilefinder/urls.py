@@ -27,7 +27,7 @@ urlpatterns = [
     path("open_with_bff", views.open_with_bff, name="omero_biofilefinder_openwith"),
     # when BFF loads a parquet file, the url needs to end with .parquet
     path(
-        "fileann/<int:ann_id>/omero.parquet",
+        "fileann/<int:annId>/omero.parquet",
         download_annotation,
         name="omero_biofilefinder_fileann",
     ),
