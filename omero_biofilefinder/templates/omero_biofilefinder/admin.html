@@ -1,16 +1,7 @@
-<html>
-  <head>
-    <title>Open with Biofile Finder</title>
-    <style>
-      body {
-        font-family: Arial, sans-serif;
-        margin: 20px;
-        color: #333;
-      }
-    </style>
-  </head>
 
-  <body>
+{% extends "omero_biofilefinder/index.html" %}
+
+{% block content %}
     <h2>Admin Page</h2>
 
     <p>
@@ -19,7 +10,7 @@
     </p>
 
     <p>
-      This script has a dependency on pyarrow installed in the OMERO.server
+      This script has a dependency on <code>pyarrow</code> installed in the OMERO.server
       python environment.
     </p>
 
@@ -33,7 +24,7 @@
       action="{% url 'bff_upload_omero_script' %}"
     >
       {% csrf_token %}
-      <button type="submit">
+      <button class="button_link" style="background: green;" type="submit">
         {% if script_id > 0 %}
           Replace Script
         {% else %}
@@ -41,8 +32,10 @@
         {% endif %}
       </button>
     </form>
-  </body>
+{% endblock %}
 
+
+{% block extra_js %}
   <script>
     async function sendData(form) {
       const formData = new FormData(form);
@@ -86,4 +79,4 @@
       });
     }
   </script>
-</html>
+{% endblock %}

@@ -31,11 +31,13 @@ import pyarrow.parquet as pq
 from django.http import Http404, HttpResponse, JsonResponse
 from django.shortcuts import render
 from django.urls import reverse
+from omero.gateway import FileAnnotationWrapper
 from omeroweb.decorators import login_required
 from omeroweb.webclient.tree import marshal_annotations
 from omeroweb.webgateway.views import perform_table_query
 
 from . import biofilefinder_settings as settings
+from .utils import get_image_count
 
 BFF_NAMESPACE = "omero_biofilefinder.parquet"
 TABLE_NAMESPACE = "openmicroscopy.org/omero/bulk_annotations"
@@ -46,7 +48,9 @@ SCRIPT_PATH = "/omero/annotation_scripts/Export_to_Biofile_Finder.py"
 @login_required()
 def index(request, conn=None, **kwargs):
     # Placeholder index page
-    return render(request, "omero_biofilefinder/index.html", {})
+    return render(
+        request, "omero_biofilefinder/index.html", {"is_admin": conn.isAdmin()}
+    )
 
 
 def get_bff_url(request, data_url, fname, ext="csv"):
@@ -102,7 +106,10 @@ def open_with_bff(request, conn=None, **kwargs):
     image_ids = []
     obj = conn.getObject(obj_type, obj_id)
     if obj is None:
-        raise Http404("{obj_type}:{obj_id} Not Found")
+        raise Http404(f"{obj_type}:{obj_id} Not Found")
+
+    # image count
+    img_count = get_image_count(conn, obj_type.capitalize(), obj_id)
 
     if obj_type == "project" or obj_type == "dataset":
         if obj_type == "project":
@@ -123,8 +130,8 @@ def open_with_bff(request, conn=None, **kwargs):
             if len(image_ids) > 5:
                 break
 
-    if len(image_ids) == 0:
-        return HttpResponse(f"No images found in {obj_type}:{obj_id}")
+    # if len(image_ids) == 0:
+    #     return HttpResponse(f"No images found in {obj_type}:{obj_id}")
 
     # Get KVP keys for 5 images...
     anns, experimenters = marshal_annotations(conn, image_ids=image_ids, ann_type="map")
@@ -135,7 +142,12 @@ def open_with_bff(request, conn=None, **kwargs):
     # Sort keys by number of occurrences and take the top 3
     sorted_keys = sorted(keys.keys(), key=lambda x: keys[x], reverse=True)
     # Show max 5 columns (4 keys)
-    col_names = ["File Name", "Dataset"] + sorted_keys[:3]
+    col_names = ["File Name"]
+    if obj_type == "project":
+        col_names.append("Dataset")
+    elif obj_type == "plate":
+        col_names.append("Well")
+    col_names.extend(sorted_keys[:3])
     col_width = 1 / len(col_names)
     # column query e.g. "File Name:0.25,Dataset:0.25,Key1:0.25,Key2:0.25"
     col_query = ",".join([f"{name}:{col_width}:.2f" for name in col_names])
@@ -160,7 +172,22 @@ def open_with_bff(request, conn=None, **kwargs):
                     ),
                 }
             )
-    for ann in obj.listAnnotations(ns=TABLE_NAMESPACE):
+    # Same logic as listing OMERO.tables in webclient...
+    anns = [
+        ann for ann in obj.listAnnotations() if isinstance(ann, FileAnnotationWrapper)
+    ]
+
+    def is_table_ann(ann):
+        if ann.getNs() == TABLE_NAMESPACE:
+            return True
+        file = ann.getFile()
+        if file is not None and file.getMimetype() == "OMERO.tables":
+            return True
+        return False
+
+    anns = [ann for ann in anns if is_table_ann(ann)]
+
+    for ann in anns:
         table_pq_url = reverse(
             "omero_biofilefinder_table_to_parquet", kwargs={"ann_id": ann.id}
         )
@@ -187,6 +214,7 @@ def open_with_bff(request, conn=None, **kwargs):
         "table_anns": table_anns,
         "script_id": script_id,
         "is_admin": conn.isAdmin(),
+        "img_count": img_count,
     }
 
     return render(request, "omero_biofilefinder/open_with_bff.html", context)
