@@ -36,6 +36,13 @@ urlpatterns = [
         download_annotation,
         name="omero_biofilefinder_fileann",
     ),
+    # Take a regular csv (with an Image or image column) and serve as a BFF-compatible
+    # csv (with Thumbnail and File Path columns)
+    path(
+        "csv/<int:ann_id>/omero.csv",
+        views.csv_to_bff_csv,
+        name="omero_biofilefinder_csv_to_bff_csv",
+    ),
     path(
         "table/<int:ann_id>/omero.parquet",
         views.table_to_parquet,

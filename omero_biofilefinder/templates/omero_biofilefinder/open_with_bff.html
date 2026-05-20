@@ -60,40 +60,38 @@
                 </p>
             {% endif %}
         </div>
-        {% endif %}
+      {% endif %}
 
-        <div class="alternative_option">
-          <h2>Alternative option: open an OMERO.table</h2>
-          <p>
-            OMERO.tables can be opened in BioFile Finder.
-            They will be dynamically converted to Parquet files when loaded by BioFile Finder.
-            Any Image column on the OMERO.table will be used to add `Thumbnail` and `File Path` columns
-            required by BioFile Finder.
-          </p>
-          {% if table_anns %}
-            <ul>
-            {% for ann in table_anns %}
-              <li>
-                  {{ ann.name }} (Created: {{ ann.created }} Size: {{ ann.size }} bytes)
-                  <a class="button_link" href="{{ ann.bff_url }}">Open table in BioFile Finder</a>
-              </li>
-            {% endfor %}
-            </ul>
-          {% else %}
-            <p>
-              No OMERO.table files currently attached to {{ target.dtype | capfirst }}:{{ target.id }}.
-            </p>
-          {% endif %}
-
-          </div>
-        <h2>Using Biofile Finder</h2>
-
+      <div class="alternative_option">
+        <h2>Alternative option: open an OMERO.table or CSV file</h2>
         <p>
-
-          In BioFile Finder, you can open selected Images in the OMERO webclient by using the
-          "Open File" button and choosing "Browser".
+          OMERO.tables and CSV files can be opened in BioFile Finder.
+          OMERO.tables will be dynamically converted to Parquet files when loaded by BioFile Finder.
+          Any Shape, Roi, or Image column on the OMERO.table or CSV file will be used to add `Thumbnail` and
+          `File Path` columns for use by BioFile Finder.
         </p>
-        <img src="{% static 'omero_biofilefinder/images/bff_open_file.png' %}" alt="Open File in Browser" style="float:left; margin-right: 15px; width: 300px; height: auto;">
+        {% if table_anns %}
+          <ul>
+          {% for ann in table_anns %}
+            <li>
+                {{ ann.name }} (Created: {{ ann.created }} Size: {{ ann.size }} bytes)
+                <a class="button_link" href="{{ ann.bff_url }}">Open table in BioFile Finder</a>
+            </li>
+          {% endfor %}
+          </ul>
+        {% else %}
+          <p>
+            No OMERO.table files currently attached to {{ target.dtype | capfirst }}:{{ target.id }}.
+          </p>
+        {% endif %}
+      </div>
+
+      <h2>Using Biofile Finder</h2>
+      <p>
+        In BioFile Finder, you can open selected Images in the OMERO webclient by using the
+        "Open File" button and choosing "Browser".
+      </p>
+      <img src="{% static 'omero_biofilefinder/images/bff_open_file.png' %}" alt="Open File in Browser" style="float:left; margin-right: 15px; width: 300px; height: auto;">
 
     {% endblock %}
 
