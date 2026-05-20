@@ -7,15 +7,17 @@
             {{ target.dtype | capfirst }} name: <b>{{ target.name }}</b> <br/>
             Image count: <b>{{ img_count }}</b>
         </p>
-        <p>
-            BioFile Finder loads a table of Images from OMERO with columns created dynamically from Key-Value pairs,
-            creation times and Dataset or Well names. The `File Path` and `Thumbnail` columns required
-            by BioFile Finder are also added.
-        </p>
+        {% if bff_url %}
+          <p>
+              BioFile Finder loads a table of Images from OMERO with columns created dynamically from Key-Value pairs,
+              creation times and Dataset or Well names. The `File Path` and `Thumbnail` columns required
+              by BioFile Finder are also added.
+          </p>
 
-        <p>
-            <a href="{{ bff_url}}" class="button_link" style="margin-top: 0">Open {{ target.dtype | capfirst }} in Biofile Finder</a>
-        <p>
+          <p>
+              <a href="{{ bff_url}}" class="button_link" style="margin-top: 0">Open {{ target.dtype | capfirst }} in Biofile Finder</a>
+          <p>
+        {% endif %}
 
         {% if img_count > 400 or bff_parquet_anns %}
         <div class="alternative_option">
@@ -63,7 +65,7 @@
       {% endif %}
 
       <div class="alternative_option">
-        <h2>Alternative option: open an OMERO.table or CSV file</h2>
+        <h2>{% if bff_url %}Alternative option: {% endif %}open an OMERO.table or CSV file</h2>
         <p>
           OMERO.tables and CSV files can be opened in BioFile Finder.
           OMERO.tables will be dynamically converted to Parquet files when loaded by BioFile Finder.
@@ -81,7 +83,7 @@
           </ul>
         {% else %}
           <p>
-            No OMERO.table files currently attached to {{ target.dtype | capfirst }}:{{ target.id }}.
+            No OMERO.table or CSV files currently attached to {{ target.dtype | capfirst }}:{{ target.id }}.
           </p>
         {% endif %}
       </div>

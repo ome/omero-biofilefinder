@@ -54,6 +54,8 @@ def get_image_count(conn, obj_type, obj_id):
             " join well.plate as plate"
             " where plate.id = :id"
         )
+    elif obj_type == "Image":
+        return 1
     result = conn.getQueryService().projection(query, params, ctx)
     count = 0
     for d in result:

@@ -85,73 +85,29 @@ def open_with_bff(request, conn=None, **kwargs):
     we can use that instead of the csv file.
     """
 
-    for obj_type in ["project", "plate", "dataset"]:
+    for obj_type in ["project", "plate", "dataset", "image"]:
         obj_id = request.GET.get(obj_type)
         if obj_id is not None:
             break
 
     if obj_id is None:
-        raise Http404("Use ?project=1 or ?screen=1")
+        raise Http404("Use ?project=1 or ?dataset=1 or ?plate=1 or ?image=1")
     else:
         obj_id = int(obj_id)
 
-    csv_url = reverse(
-        "omero_biofilefinder_csv", kwargs={"obj_id": obj_id, "obj_type": obj_type}
-    )
-    bff_url = get_bff_url(request, csv_url, "omero.csv", ext="csv")
+    bff_url = None
+    if obj_type in ["project", "plate", "dataset"]:
+        csv_url = reverse(
+            "omero_biofilefinder_csv", kwargs={"obj_id": obj_id, "obj_type": obj_type}
+        )
+        bff_url = get_bff_url(request, csv_url, "omero.csv", ext="csv")
 
-    # We want to pick some columns to show in the BFF app.
-    # Need to know a few Keys from Key-Value pairs.
-    # Let's just check first 5 images...
-    image_ids = []
     obj = conn.getObject(obj_type, obj_id)
     if obj is None:
         raise Http404(f"{obj_type}:{obj_id} Not Found")
 
     # image count
     img_count = get_image_count(conn, obj_type.capitalize(), obj_id)
-
-    if obj_type == "project" or obj_type == "dataset":
-        if obj_type == "project":
-            datasets = list(obj.listChildren())
-        else:
-            datasets = [obj]
-        for dataset in datasets:
-            for image in dataset.listChildren():
-                image_ids.append(image.id)
-                if len(image_ids) > 5:
-                    break
-            if len(image_ids) > 5:
-                break
-    elif obj_type == "plate":
-        for well in obj.listChildren():
-            image = well.getImage(0)
-            image_ids.append(image.id)
-            if len(image_ids) > 5:
-                break
-
-    # if len(image_ids) == 0:
-    #     return HttpResponse(f"No images found in {obj_type}:{obj_id}")
-
-    # Get KVP keys for 5 images...
-    anns, experimenters = marshal_annotations(conn, image_ids=image_ids, ann_type="map")
-    keys = defaultdict(int)
-    for ann in anns:
-        for key, val in ann["values"]:
-            keys[key] += 1
-    # Sort keys by number of occurrences and take the top 3
-    sorted_keys = sorted(keys.keys(), key=lambda x: keys[x], reverse=True)
-    # Show max 5 columns (4 keys)
-    col_names = ["File Name"]
-    if obj_type == "project":
-        col_names.append("Dataset")
-    elif obj_type == "plate":
-        col_names.append("Well")
-    col_names.extend(sorted_keys[:3])
-    col_width = 1 / len(col_names)
-    # column query e.g. "File Name:0.25,Dataset:0.25,Key1:0.25,Key2:0.25"
-    col_query = ",".join([f"{name}:{col_width}:.2f" for name in col_names])
-    bff_url += "&c=" + col_query
 
     # If there is a parquet file already attached to the project, we can
     # use that instead of the csv file.
