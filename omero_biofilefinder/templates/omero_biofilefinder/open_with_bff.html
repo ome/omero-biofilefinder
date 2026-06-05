@@ -31,7 +31,10 @@
                 {% csrf_token %}
                 <input type="text" hidden name="IDs" value="{{ target.id }}" size="10"/>
                 <input type="text" hidden name="Data_Type" value="{{ target.dtype | capfirst }}" />
-                <button class="button_link" type="submit" style="background: green; margin: 0">Run Script</button>
+                <input id="base_url" hidden type="text" name="Base_URL" value="/"/>
+                <button id="submit_button" class="button_link" type="submit" style="background: green; margin: 0;">
+                  Run Script
+                </button>
                 <div id="script_status" style="margin-top: 10px;"></div>
             </form>
             {% else %}
@@ -97,16 +100,49 @@
     {% block extra_js %}
     <script>
 
+      const ACTIVITIES_URL = "{% url 'activities_json' %}";
+      const $scriptStatus = document.querySelector("#script_status");
+      const $submitButton = document.getElementById("submit_button");
+      const $baseUrl = document.getElementById("base_url");
+
+      // populate baseUrl hidden input with the base URL of this OMERO.web instance (e.g. "/" or "/web/" etc.)
+      // Used by script to generate Thumbnail URLs eg. /webgateway/render_thumbnail/... or /web/webgateway/render_thumbnail/...
+      $baseUrl.value = window.location.pathname.split('biofilefinder')[0];
+
+      function pingActivities(jobId) {
+        fetch(ACTIVITIES_URL)
+          .then((response) => response.json())
+          .then((data) => {
+            if (!data[jobId]) {
+              console.error("Job ID not found in activities:", jobId);
+              return;
+            }
+            const job = data[jobId];
+            console.log("Job status:", job.status);
+            if (job.status === "finished") {
+              $scriptStatus.innerHTML = "Script completed. <button onclick='window.location.reload(); return false;'>Refresh page</button> to check for results.";
+            } else if (job.status === "error") {
+              $scriptStatus.innerHTML = "Script finished with error.";
+              alert("Script finished with error.");
+            } else {
+              // Add a "." to indicate progresss
+              $scriptStatus.innerHTML = $scriptStatus.innerHTML + ".";
+              setTimeout(() => pingActivities(jobId), 2000); // Poll every 2 seconds
+              return;
+            }
+            // Must be done... reset submit button
+            $submitButton.disabled = false;
+            $submitButton.innerText = "Run Script";
+          });
+      }
+
       async function sendData(form) {
         const formData = new FormData(form);
         console.log("Sending form data...", formData);
         const url = form.action;
         // disable submit button
-        const submitButton = form.querySelector('button[type="submit"]');
-        if (submitButton) {
-          submitButton.disabled = true;
-          submitButton.innerText = "Building table...";
-        }
+        $submitButton.disabled = true;
+        $submitButton.innerText = "Building table...";
 
         try {
           const response = await fetch(url, {
@@ -116,26 +152,23 @@
           });
           const rspJson = await response.json();
           console.log(rspJson);
+          // {
+          //     "jobId": "ProcessCallback/acc04dd1-fb5f-480a-9c73-bc9dd6fb985c -t -e 1.1:tcp -h 172.18.0.9 -p 42113 -t 60000",
+          //     "status": "in progress"
+          // }
           if (rspJson.Error) {
             alert("Error: " + rspJson.Error);
           } else {
-            const scriptStatus = document.querySelector("#script_status");
-            if (scriptStatus) {
-              scriptStatus.innerHTML = "Script running. <a href='' onclick='location.reload(); return false;'>Refresh page</a> to check for results.";
+            if ($scriptStatus) {
+              $scriptStatus.innerHTML = "Script running.";
             }
+            const jobId = rspJson.jobId;
+            // ping ACTIVITIES every 5 secs with jobId until status is "finished"
+            pingActivities(jobId);
           }
         } catch (e) {
           console.error(e);
         }
-      }
-
-      // Form for Admins to upload the script
-      const uploadForm = document.querySelector("#upload_script");
-      if (uploadForm) {
-        uploadForm.addEventListener("submit", (event) => {
-          event.preventDefault();
-          sendData(uploadForm);
-        });
       }
 
       // Form to run the script
