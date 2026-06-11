@@ -123,7 +123,7 @@ def open_with_bff(request, conn=None, **kwargs):
                     "description": ann.getDescription(),
                     "size": ann.getFile().getSize(),
                     "created": ann.creationEventDate().strftime("%Y-%m-%d %H:%M:%S.%Z"),
-                    "bbf_url": get_bff_url(
+                    "bff_url": get_bff_url(
                         request, pq_url, "omero.parquet", ext="parquet"
                     ),
                 }

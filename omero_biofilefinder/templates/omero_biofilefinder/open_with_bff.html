@@ -1,6 +1,49 @@
 
 {% extends "omero_biofilefinder/index.html" %}
 
+{% block extra_head %}
+  <style>
+    ul {
+      padding-left: 0px;
+      margin-bottom: 0;
+    }
+    li {
+      margin-bottom: 10px;
+      display: block;
+    }
+     /* last li no margin-bottom */
+    li:last-child {
+      margin-bottom: 0;
+    }
+
+    .created {
+      font-size: 12px;
+      color: #555;
+    }
+    .file_link {
+      color: inherit;
+      display: flex;
+      text-decoration: none;
+      align-items: center;
+      gap: 10px;
+      width: fit-content;
+      border-radius: 5px;
+    }
+    .file_link:hover {
+      background-color: #f9f9f9;
+    }
+    .file_link:hover strong {
+      text-decoration: underline;
+    }
+    .file_link:valid {
+      color: inherit;
+    }
+    .file_link:hover .button_link {
+      text-decoration: none;
+    }
+  </style>
+{% endblock %}
+
     {% block content %}
         <h1>Open {{ target.dtype | capfirst }}:{{ target.id }} with Biofile Finder...</h1>
         <p>
@@ -47,15 +90,22 @@
             {% endif %}
 
             {% if bff_parquet_anns %}
-                    <h3>Existing parquet files:</h3>
-                    <ul>
-                    {% for ann in bff_parquet_anns %}
-                        <li>
-                            {{ ann.name }} (Created: {{ ann.created }} Size: {{ ann.size }} bytes)
-                            <a class="button_link" href="{{ ann.bbf_url }}">Open parquet in Biofile Finder</a>
-                        </li>
-                    {% endfor %}
-                    </ul>
+              <ul>
+              {% for ann in bff_parquet_anns %}
+                  <li>
+                    <a class="file_link" href="{{ ann.bff_url }}" title="Open table in BioFile Finder">
+                      <img src="{% static 'omero_biofilefinder/images/file-icon.svg' %}" alt="Open table in BioFile Finder" style="width: 30px; height: auto;">
+                      <div>
+                        <strong>{{ ann.name }}</strong><br>
+                        <span class="created">Created: {{ ann.created }} Size: {{ ann.size }} bytes</span>
+                      </div>
+                      <div class="button_link" href="{{ ann.bff_url }}" title="Open table in BioFile Finder">
+                        Open
+                      </div>
+                    </a>
+                  </li>
+              {% endfor %}
+              </ul>
             {% else %}
                 <p>
                     No parquet files currently attached to {{ target.dtype | capfirst }}:{{ target.id }}.
@@ -76,8 +126,16 @@
           <ul>
           {% for ann in table_anns %}
             <li>
-                {{ ann.name }} (Created: {{ ann.created }} Size: {{ ann.size }} bytes)
-                <a class="button_link" href="{{ ann.bff_url }}">Open table in BioFile Finder</a>
+              <a class="file_link" href="{{ ann.bff_url }}" title="Open table in BioFile Finder">
+                <img src="{% static 'omero_biofilefinder/images/file-icon.svg' %}" alt="Open table in BioFile Finder" style="width: 30px; height: auto;">
+                <div>
+                  <strong>{{ ann.name }}</strong><br>
+                  <span class="created">Created: {{ ann.created }} Size: {{ ann.size }} bytes</span>
+                </div>
+                <div class="button_link" href="{{ ann.bff_url }}" title="Open table in BioFile Finder">
+                  Open
+                </div>
+              </a>
             </li>
           {% endfor %}
           </ul>
