@@ -8,7 +8,7 @@ name = "omero-biofilefinder"
 version = "0.1.0.dev0"
 description = "OMERO BioFile Finder plugin"
 authors = [
-   {name = "Will Moore", email = "ome-team@openmicroscopy.org"}
+   {name = "The Open Microscopy Team", email = "ome-team@openmicroscopy.org"}
 ]
 license = {file = "LICENSE"}
 keywords = ["omero", "omero-web"]
