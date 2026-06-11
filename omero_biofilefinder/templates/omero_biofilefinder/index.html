@@ -16,15 +16,87 @@
 <!DOCTYPE html>
 <html>
     <head>
-        <title>OMERO OMERO BioFile Finder</title>
+        <title>Biofile Finder</title>
+        <style>
+            body {
+                font-family: Arial, sans-serif;
+                margin: 0px;
+                color: #333;
+                font-size: 15px;
+                line-height: 1.3em;
+            }
+            button {
+                cursor: pointer
+            }
 
-        <!-- Include static css -->
-        <link rel="stylesheet" type="text/css" href="{% static 'omero_biofilefinder/app.css' %}" />
+            .button_link {
+                display: inline-block;
+                border: none;
+                border-radius: 15px;
+                background-color: #0b9aab;
+                padding: 10px 20px;
+                text-decoration: none;
+                color: white;
+                box-shadow: 0px 3px 4px 0px rgba(120, 120, 120, 0.3);
+                margin-top: 5px;
+            }
+            .navbar {
+                color: white;
+                background-color: #202020;
+                padding: 10px;
+                border-bottom: solid black 1px;
+                margin-bottom: 20px;
+                box-shadow: 0px 3px 4px 0px rgba(0, 0, 0, 0.3);
+                display: flex;
+                align-items: center;
+                flex-direction: row;
+            }
+            h1, h2 {
+                margin: 0px;
+                font-size: 24px;
+                font-weight: 200;
+            }
+            h2 {
+                font-size: 20px;
+            }
+            .content {
+                max-width: 800px;
+                margin: 0 auto;
+            }
+            .alternative_option {
+                border-radius: 15px;
+                padding: 15px;
+                background-color: #f0f0f0; margin-bottom: 20px;
+            }
+            ul {
+                padding-left: 20px;
+            }
+        </style>
     </head>
-    <body>
-        <h1>Welcome to OMERO BioFile Finder</h1>
 
-        Use the "Open With" context menu in OMERO.web to open data in the
-        <a href="https://bff.allencell.org/">BioFile Finder</a> app.
+    <body>
+      <div class="navbar">
+          <h1 style="margin: 6px; flex: 0 0 auto;">OMERO BioFile Finder</h1>
+          <div style="flex: 1 1 auto;"></div>
+          {% if is_admin %}
+          <div style="flex: 0 0 auto;">
+            <a style="color: white;" href="{% url 'omero_biofilefinder_admin' %}">Admin (script upload)</a>
+          </div>
+        {% endif %}
+      </div>
+
+      <div class="content">
+        {% block content %}
+        <h1>Welcome to OMERO BioFile Finder</h1>
+        <p>
+            Use the "Open With" context menu in OMERO.web to open data in the
+            <a href="https://bff.allencell.org/">BioFile Finder</a> app.
+        </p>
+        {% endblock %}
+      </div>
     </body>
+
+    {% block extra_js %}
+    {% endblock %}
+
 </html>

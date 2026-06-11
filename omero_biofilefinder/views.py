@@ -19,13 +19,16 @@
 import csv
 import io
 import json
+import os
 import urllib
 from collections import defaultdict
+
+import omero
 
 # TODO: try/except for pyarrow import
 import pyarrow as pa
 import pyarrow.parquet as pq
-from django.http import Http404, HttpResponse
+from django.http import Http404, HttpResponse, JsonResponse
 from django.shortcuts import render
 from django.urls import reverse
 from omero.gateway import FileAnnotationWrapper
@@ -39,11 +42,15 @@ from .utils import get_image_count
 BFF_NAMESPACE = "omero_biofilefinder.parquet"
 TABLE_NAMESPACE = "openmicroscopy.org/omero/bulk_annotations"
 
+SCRIPT_PATH = "/omero/annotation_scripts/Export_to_Biofile_Finder.py"
+
 
 @login_required()
 def index(request, conn=None, **kwargs):
     # Placeholder index page
-    return render(request, "omero_biofilefinder/index.html", {})
+    return render(
+        request, "omero_biofilefinder/index.html", {"is_admin": conn.isAdmin()}
+    )
 
 
 def get_bff_url(request, data_url, fname, ext="csv"):
@@ -99,7 +106,7 @@ def open_with_bff(request, conn=None, **kwargs):
     image_ids = []
     obj = conn.getObject(obj_type, obj_id)
     if obj is None:
-        raise Http404("{obj_type}:{obj_id} Not Found")
+        raise Http404(f"{obj_type}:{obj_id} Not Found")
 
     # image count
     img_count = get_image_count(conn, obj_type.capitalize(), obj_id)
@@ -123,8 +130,8 @@ def open_with_bff(request, conn=None, **kwargs):
             if len(image_ids) > 5:
                 break
 
-    if len(image_ids) == 0:
-        return HttpResponse(f"No images found in {obj_type}:{obj_id}")
+    # if len(image_ids) == 0:
+    #     return HttpResponse(f"No images found in {obj_type}:{obj_id}")
 
     # Get KVP keys for 5 images...
     anns, experimenters = marshal_annotations(conn, image_ids=image_ids, ann_type="map")
@@ -197,11 +204,16 @@ def open_with_bff(request, conn=None, **kwargs):
             }
         )
 
+    script_service = conn.getScriptService()
+    script_id = script_service.getScriptID(SCRIPT_PATH)
+
     context = {
         "bff_url": bff_url,
         "target": {"dtype": obj_type, "id": obj_id, "name": obj.getName()},
         "bff_parquet_anns": bff_parquet_anns,
         "table_anns": table_anns,
+        "script_id": script_id,
+        "is_admin": conn.isAdmin(),
         "img_count": img_count,
     }
 
@@ -395,3 +407,51 @@ def app(request, url, **kwargs):
         elif url.endswith(".html"):
             response["Content-Type"] = "text/html"
     return response
+
+
+@login_required(isAdmin=True)
+def upload_omero_script(request, conn=None, **kwargs):
+    """Uploads or Replaces the Export_to_Biofile_Finder.py"""
+
+    if not request.method == "POST":
+        return HttpResponse("Need to use POST")
+
+    script_service = conn.getScriptService()
+    script_id = script_service.getScriptID(SCRIPT_PATH)
+
+    this_dir = os.path.dirname(os.path.abspath(__file__))
+    script_path = os.path.join(this_dir, "scripts", SCRIPT_PATH[1:])
+
+    try:
+        with open(script_path) as script_file:
+            script_text = script_file.read()
+    except FileNotFoundError:
+        return JsonResponse({"Error": "Failed to load script from " + script_path})
+
+    # If script exists, replace. Otherwise upload
+    try:
+        if script_id > 0:
+            orig_file = omero.model.OriginalFileI(script_id, False)
+            script_service.editScript(orig_file, script_text)
+            message = "Script Replaced"
+        else:
+            script_id = script_service.uploadOfficialScript(SCRIPT_PATH, script_text)
+            message = "Script Uploaded"
+    except omero.ValidationException as ex:
+        return JsonResponse({"Error": ex.message})
+
+    return JsonResponse({"Message": message, "script_id": script_id})
+
+
+@login_required(isAdmin=True)
+def admin_page(request, conn=None, **kwargs):
+    """Admin page to upload or replace the OMERO.script"""
+
+    script_service = conn.getScriptService()
+    script_id = script_service.getScriptID(SCRIPT_PATH)
+
+    print("Script ID:", script_id)
+    context = {
+        "script_id": script_id,
+    }
+    return render(request, "omero_biofilefinder/admin.html", context)
