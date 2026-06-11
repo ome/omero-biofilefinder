@@ -30,11 +30,12 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 from django.http import Http404, HttpResponse, JsonResponse
 from django.shortcuts import render
-from django.urls import reverse
+from django.urls import NoReverseMatch, reverse
 from omero.gateway import FileAnnotationWrapper
 from omeroweb.decorators import login_required
 from omeroweb.webclient.tree import marshal_annotations
 from omeroweb.webgateway.views import perform_table_query
+from pyarrow import csv as pa_csv
 
 from . import biofilefinder_settings as settings
 from .utils import get_image_count
@@ -162,11 +163,13 @@ def open_with_bff(request, conn=None, **kwargs):
         table_anns.append(
             {
                 "id": ann.id,
+                "file_id": ann.getFile().id,
                 "name": ann.getFile().getName(),
                 "description": ann.getDescription(),
                 "size": ann.getFile().getSize(),
                 "created": ann.creationEventDate().strftime("%Y-%m-%d %H:%M:%S.%Z"),
                 "bff_url": get_bff_url(request, table_url, file_name, ext=ext),
+                "ext": ext,
             }
         )
 
@@ -194,6 +197,11 @@ def get_urls(table_row, image_col, roi_col, shape_col):
     row_type = None
     row_id = None
     webclient_url = reverse("webindex")
+    try:
+        omero_iviewer_index = reverse("omero_iviewer_index")
+    except NoReverseMatch:
+        # iviewer not installed
+        omero_iviewer_index = None
     for otype, idx in zip(["shape", "roi", "image"], [shape_col, roi_col, image_col]):
         if idx is not None and table_row[idx]:
             try:
@@ -203,16 +211,58 @@ def get_urls(table_row, image_col, roi_col, shape_col):
             row_type = otype
             row_id = table_row[idx]
             break
-    web_url = webclient_url + f"?show={row_type}-{row_id}&_=.png"
+
     if row_type == "image":
+        web_url = webclient_url + f"img_detail/{row_id}/"
         thumb_url = reverse("webgateway_render_thumbnail", kwargs={"iid": row_id})
     elif row_type == "shape":
         thumb_url = reverse(
             "webgateway_render_shape_thumbnail", kwargs={"shapeId": row_id}
         )
+        if omero_iviewer_index:
+            web_url = omero_iviewer_index + f"?shape={row_id}"
+        else:
+            web_url = webclient_url + f"?show=shape-{row_id}/"
     elif row_type == "roi":
         thumb_url = reverse("webgateway_render_roi_thumbnail", kwargs={"roiId": row_id})
+        if omero_iviewer_index:
+            web_url = omero_iviewer_index + f"?roi={row_id}"
+        else:
+            web_url = webclient_url + f"?show=roi-{row_id}/"
     return web_url, thumb_url
+
+
+@login_required()
+def csv_metadata(request, fileId, conn=None, **kwargs):
+    """
+    Return metadata for a CSV file as JSON. This is used by BFF to display metadata
+    about the file.
+
+    Returns {"columns": [{"name": "Column Name", "type": "string|int|float"}, ...], }
+    """
+    orig_file = conn.getObject("OriginalFile", fileId)
+    if orig_file is None:
+        return JsonResponse({"error": "File not found"}, status=404)
+
+    columns = []
+    num_rows = 0
+    with orig_file.asFileObj() as file_obj:  # Returns a file-like object
+        # use csv reader to read first 10 lines to get column names and types
+        csv_bytes = file_obj.read()
+        arrow_table = pa_csv.read_csv(io.BytesIO(csv_bytes))
+
+        sch = arrow_table.schema
+        columns = [
+            {"name": name, "type": str(t)} for name, t in zip(sch.names, sch.types)
+        ]
+        num_rows = arrow_table.num_rows
+
+    metadata = {
+        "name": orig_file.getName(),
+        "columns": columns,
+        "totalCount": num_rows,
+    }
+    return JsonResponse(metadata)
 
 
 @login_required()

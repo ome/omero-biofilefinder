@@ -41,6 +41,23 @@
     .file_link:hover .button_link {
       text-decoration: none;
     }
+    .spinner {
+      margin-left: auto;
+      width: 20px;
+      height: 20px;
+      border: 3px solid #f3f3f3;
+      border-top: 3px solid #555;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+    .disabled {
+      /* pointer-events: hover; */
+      opacity: 0.6;
+    }
   </style>
 {% endblock %}
 
@@ -135,6 +152,11 @@
                 <div class="button_link" href="{{ ann.bff_url }}" title="Open table in BioFile Finder">
                   Open
                 </div>
+
+                <div class="table_info" data-ext="{{ ann.ext }}" data-fileid="{{ ann.file_id }}">
+                  <!-- spinner shown here when loading table columns, then we show info -->
+                </div>
+
               </a>
             </li>
           {% endfor %}
@@ -158,6 +180,8 @@
     {% block extra_js %}
     <script>
 
+      const WEBGATEWAY_URL = "{% url 'webgateway' %}";
+      const OMEROBFF_URL = "{% url 'omero_biofilefinder_index' %}";
       const ACTIVITIES_URL = "{% url 'activities_json' %}";
       const $scriptStatus = document.querySelector("#script_status");
       const $submitButton = document.getElementById("submit_button");
@@ -237,5 +261,60 @@
           sendData(runscriptForm);
         });
       }
+
+      function checkColums(cols) {
+        // We want to know if any of the columns in the table are of type "Image" or "Roi" or "Shape"
+        let obj_type = null;
+        let colnames = cols.map(c => c.name.toLowerCase());
+        for (const objType of ["shape", "roi", "image"]) {
+          for (const suffix of ["", "_id", " id"]) {
+            let colName = objType + suffix;
+            if (colnames.includes(colName)) {
+              let colType = cols[colnames.indexOf(colName)].type;
+              if (["LongColumn", "ImageColumn", "RoiColumn", "int64"].includes(colType)) {
+                obj_type = objType.charAt(0).toUpperCase() + objType.slice(1);
+                return obj_type;
+              }
+            }
+          }
+        }
+      }
+        // When page loads, we go through each table_info div and use the file_id to fetch the table columns
+      document.addEventListener("DOMContentLoaded", async () => {
+        const tableInfoDivs = document.querySelectorAll(".table_info");
+        for (const div of tableInfoDivs) {
+          const fileId = div.getAttribute("data-fileid");
+          const ext = div.getAttribute("data-ext");
+          console.log(`Table info - File ID: ${fileId}, Ext: ${ext}`);
+          div.innerHTML = `<div title="Checking table columns..." class="spinner"></div>`;
+          // if ext is 'parquet' this is actually OMERO.table that will be converted to parquet by BFF, so we can fetch the columns
+          if (ext === "parquet") {
+            url = `${WEBGATEWAY_URL}table/${fileId}/metadata/`;
+          } else if (ext === "csv") {
+            url = `${OMEROBFF_URL}csv/${fileId}/metadata/`;
+          } else {
+            div.innerHTML = `(unknown extension)`;
+            return;
+          }
+          let tableJson = await fetch(url).then(response => response.json());
+          let keyObj = checkColums(tableJson.columns);
+          let colHtml = tableJson.columns.map(col => `${col.name} (${col.type})`).join(", ");
+          if (keyObj) {
+            div.innerHTML = `${keyObj}s detected`;
+          } else {
+            div.innerHTML = `No Image, Shape or Roi column detected`;
+            // need to disable the parent element "a" link...
+            let parentLink = div.closest("a.file_link");
+            if (parentLink) {
+              parentLink.classList.add("disabled");
+              parentLink.addEventListener("click", (e) => {
+                e.preventDefault();
+                // alert("This table does not contain any Image, Shape or Roi columns required for BioFile Finder.");
+              });
+            }
+          }
+          div.title = `Columns: ${colHtml}`;
+        };
+      });
     </script>
     {% endblock %}

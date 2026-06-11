@@ -48,6 +48,12 @@ urlpatterns = [
         views.table_to_parquet,
         name="omero_biofilefinder_table_to_parquet",
     ),
+    # equivalent to /webgateway/table/ID/metadata but for CSV file
+    path(
+        "csv/<int:fileId>/metadata/",
+        views.csv_metadata,
+        name="omero_biofilefinder_csv_metadata",
+    ),
     re_path(
         r"^(?P<obj_type>(project|dataset|plate))/(?P<obj_id>[0-9]+)$",
         views.omero_to_csv,
