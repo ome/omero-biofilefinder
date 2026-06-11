@@ -32,7 +32,7 @@ repos:
       - id: trailing-whitespace
         exclude: |
           (?x)(
-              ^.bumpversion.cfg/|
+              .bumpversion.cfg|
               ^omero_biofilefinder/static/omero_biofilefinder/dist/
           )
       - id: end-of-file-fixer
