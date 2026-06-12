@@ -39,7 +39,7 @@ Installation
 ============
 
 This section assumes that an OMERO.web is already installed.
-OMERO BioFile Finder should be installed in the same python environment:
+OMERO BioFile Finder should be installed in the same python environment as OMERO.web:
 
     $ pip install omero-biofilefinder
 
