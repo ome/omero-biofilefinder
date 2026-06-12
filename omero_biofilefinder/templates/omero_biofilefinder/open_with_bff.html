@@ -1,21 +1,83 @@
 
 {% extends "omero_biofilefinder/index.html" %}
 
+{% block extra_head %}
+  <style>
+    ul {
+      padding-left: 0px;
+      margin-bottom: 0;
+    }
+    li {
+      margin-bottom: 10px;
+      display: block;
+    }
+     /* last li no margin-bottom */
+    li:last-child {
+      margin-bottom: 0;
+    }
+
+    .created {
+      font-size: 12px;
+      color: #555;
+    }
+    .file_link {
+      color: inherit;
+      display: flex;
+      text-decoration: none;
+      align-items: center;
+      gap: 10px;
+      width: fit-content;
+      border-radius: 5px;
+    }
+    .file_link:hover {
+      background-color: #f9f9f9;
+    }
+    .file_link:hover strong {
+      text-decoration: underline;
+    }
+    .file_link:valid {
+      color: inherit;
+    }
+    .file_link:hover .button_link {
+      text-decoration: none;
+    }
+    .spinner {
+      margin-left: auto;
+      width: 20px;
+      height: 20px;
+      border: 3px solid #f3f3f3;
+      border-top: 3px solid #555;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+    .disabled {
+      /* pointer-events: hover; */
+      opacity: 0.6;
+    }
+  </style>
+{% endblock %}
+
     {% block content %}
         <h1>Open {{ target.dtype | capfirst }}:{{ target.id }} with Biofile Finder...</h1>
         <p>
             {{ target.dtype | capfirst }} name: <b>{{ target.name }}</b> <br/>
             Image count: <b>{{ img_count }}</b>
         </p>
-        <p>
-            BioFile Finder loads a table of Images from OMERO with columns created dynamically from Key-Value pairs,
-            creation times and Dataset or Well names. The `File Path` and `Thumbnail` columns required
-            by BioFile Finder are also added.
-        </p>
+        {% if bff_url %}
+          <p>
+              BioFile Finder loads a table of Images from OMERO with columns created dynamically from Key-Value pairs,
+              creation times and Dataset or Well names. The `File Path` and `Thumbnail` columns required
+              by BioFile Finder are also added.
+          </p>
 
-        <p>
-            <a href="{{ bff_url}}" class="button_link" style="margin-top: 0">Open {{ target.dtype | capfirst }} in Biofile Finder</a>
-        <p>
+          <p>
+              <a href="{{ bff_url}}" class="button_link" style="margin-top: 0">Open {{ target.dtype | capfirst }} in Biofile Finder</a>
+          <p>
+        {% endif %}
 
         {% if img_count > 400 or bff_parquet_anns %}
         <div class="alternative_option">
@@ -45,61 +107,81 @@
             {% endif %}
 
             {% if bff_parquet_anns %}
-                    <h3>Existing parquet files:</h3>
-                    <ul>
-                    {% for ann in bff_parquet_anns %}
-                        <li>
-                            {{ ann.name }} (Created: {{ ann.created }} Size: {{ ann.size }} bytes)
-                            <a class="button_link" href="{{ ann.bbf_url }}">Open parquet in Biofile Finder</a>
-                        </li>
-                    {% endfor %}
-                    </ul>
+              <ul>
+              {% for ann in bff_parquet_anns %}
+                  <li>
+                    <a class="file_link" href="{{ ann.bff_url }}" title="Open table in BioFile Finder">
+                      <img src="{% static 'omero_biofilefinder/images/file-icon.svg' %}" alt="Open table in BioFile Finder" style="width: 30px; height: auto;">
+                      <div>
+                        <strong>{{ ann.name }}</strong><br>
+                        <span class="created">Created: {{ ann.created }} Size: {{ ann.size }} bytes</span>
+                      </div>
+                      <div class="button_link" href="{{ ann.bff_url }}" title="Open table in BioFile Finder">
+                        Open
+                      </div>
+                    </a>
+                  </li>
+              {% endfor %}
+              </ul>
             {% else %}
                 <p>
                     No parquet files currently attached to {{ target.dtype | capfirst }}:{{ target.id }}.
                 </p>
             {% endif %}
         </div>
-        {% endif %}
+      {% endif %}
 
-        <div class="alternative_option">
-          <h2>Alternative option: open an OMERO.table</h2>
-          <p>
-            OMERO.tables can be opened in BioFile Finder.
-            They will be dynamically converted to Parquet files when loaded by BioFile Finder.
-            Any Image column on the OMERO.table will be used to add `Thumbnail` and `File Path` columns
-            required by BioFile Finder.
-          </p>
-          {% if table_anns %}
-            <ul>
-            {% for ann in table_anns %}
-              <li>
-                  {{ ann.name }} (Created: {{ ann.created }} Size: {{ ann.size }} bytes)
-                  <a class="button_link" href="{{ ann.bff_url }}">Open table in BioFile Finder</a>
-              </li>
-            {% endfor %}
-            </ul>
-          {% else %}
-            <p>
-              No OMERO.table files currently attached to {{ target.dtype | capfirst }}:{{ target.id }}.
-            </p>
-          {% endif %}
-
-          </div>
-        <h2>Using Biofile Finder</h2>
-
+      <div class="alternative_option">
+        <h2>{% if bff_url %}Alternative option: {% endif %}open an OMERO.table or CSV file</h2>
         <p>
-
-          In BioFile Finder, you can open selected Images in the OMERO webclient by using the
-          "Open File" button and choosing "Browser".
+          OMERO.tables and CSV files can be opened in BioFile Finder.
+          OMERO.tables will be dynamically converted to Parquet files when loaded by BioFile Finder.
+          Any Shape, Roi, or Image column on the OMERO.table or CSV file will be used to add `Thumbnail` and
+          `File Path` columns for use by BioFile Finder.
         </p>
-        <img src="{% static 'omero_biofilefinder/images/bff_open_file.png' %}" alt="Open File in Browser" style="float:left; margin-right: 15px; width: 300px; height: auto;">
+        {% if table_anns %}
+          <ul>
+          {% for ann in table_anns %}
+            <li>
+              <a class="file_link" href="{{ ann.bff_url }}" title="Open table in BioFile Finder">
+                <img src="{% static 'omero_biofilefinder/images/file-icon.svg' %}" alt="Open table in BioFile Finder" style="width: 30px; height: auto;">
+                <div>
+                  <strong>{{ ann.name }}</strong><br>
+                  <span class="created">Created: {{ ann.created }} Size: {{ ann.size }} bytes</span>
+                </div>
+                <div class="button_link" href="{{ ann.bff_url }}" title="Open table in BioFile Finder">
+                  Open
+                </div>
+
+                <div class="table_info" data-ext="{{ ann.ext }}" data-fileid="{{ ann.file_id }}">
+                  <!-- spinner shown here when loading table columns, then we show info -->
+                </div>
+
+              </a>
+            </li>
+          {% endfor %}
+          </ul>
+        {% else %}
+          <p>
+            No OMERO.table or CSV files currently attached to {{ target.dtype | capfirst }}:{{ target.id }}.
+          </p>
+        {% endif %}
+      </div>
+
+      <h2>Using Biofile Finder</h2>
+      <p>
+        In BioFile Finder, you can open selected Images in the OMERO webclient by using the
+        "Open File" button and choosing "Browser".
+      </p>
+      <img src="{% static 'omero_biofilefinder/images/bff_open_file.png' %}" alt="Open File in Browser" style="float:left; margin-right: 15px; width: 300px; height: auto;">
 
     {% endblock %}
 
     {% block extra_js %}
     <script>
 
+      const WEBGATEWAY_URL = "{% url 'webgateway' %}";
+      const OMEROBFF_URL = "{% url 'omero_biofilefinder_index' %}";
       const ACTIVITIES_URL = "{% url 'activities_json' %}";
       const $scriptStatus = document.querySelector("#script_status");
       const $submitButton = document.getElementById("submit_button");
@@ -107,7 +189,10 @@
 
       // populate baseUrl hidden input with the base URL of this OMERO.web instance (e.g. "/" or "/web/" etc.)
       // Used by script to generate Thumbnail URLs eg. /webgateway/render_thumbnail/... or /web/webgateway/render_thumbnail/...
-      $baseUrl.value = window.location.pathname.split('biofilefinder')[0];
+      if ($baseUrl) {
+        // we check the form exists (script is installed etc), then set value...
+        $baseUrl.value = window.location.pathname.split('biofilefinder')[0];
+      }
 
       function pingActivities(jobId) {
         fetch(ACTIVITIES_URL)
@@ -179,5 +264,60 @@
           sendData(runscriptForm);
         });
       }
+
+      function checkColums(cols) {
+        // We want to know if any of the columns in the table are of type "Image" or "Roi" or "Shape"
+        let obj_type = null;
+        let colnames = cols.map(c => c.name.toLowerCase());
+        for (const objType of ["shape", "roi", "image"]) {
+          for (const suffix of ["", "_id", " id"]) {
+            let colName = objType + suffix;
+            if (colnames.includes(colName)) {
+              let colType = cols[colnames.indexOf(colName)].type;
+              if (["LongColumn", "ImageColumn", "RoiColumn", "int64"].includes(colType)) {
+                obj_type = objType.charAt(0).toUpperCase() + objType.slice(1);
+                return obj_type;
+              }
+            }
+          }
+        }
+      }
+        // When page loads, we go through each table_info div and use the file_id to fetch the table columns
+      document.addEventListener("DOMContentLoaded", async () => {
+        const tableInfoDivs = document.querySelectorAll(".table_info");
+        for (const div of tableInfoDivs) {
+          const fileId = div.getAttribute("data-fileid");
+          const ext = div.getAttribute("data-ext");
+          console.log(`Table info - File ID: ${fileId}, Ext: ${ext}`);
+          div.innerHTML = `<div title="Checking table columns..." class="spinner"></div>`;
+          // if ext is 'parquet' this is actually OMERO.table that will be converted to parquet by BFF, so we can fetch the columns
+          if (ext === "parquet") {
+            url = `${WEBGATEWAY_URL}table/${fileId}/metadata/`;
+          } else if (ext === "csv") {
+            url = `${OMEROBFF_URL}csv/${fileId}/metadata/`;
+          } else {
+            div.innerHTML = `(unknown extension)`;
+            return;
+          }
+          let tableJson = await fetch(url).then(response => response.json());
+          let keyObj = checkColums(tableJson.columns);
+          let colHtml = tableJson.columns.map(col => `${col.name} (${col.type})`).join(", ");
+          if (keyObj) {
+            div.innerHTML = `${keyObj}s detected`;
+          } else {
+            div.innerHTML = `No Image, Shape or Roi column detected`;
+            // need to disable the parent element "a" link...
+            let parentLink = div.closest("a.file_link");
+            if (parentLink) {
+              parentLink.classList.add("disabled");
+              parentLink.addEventListener("click", (e) => {
+                e.preventDefault();
+                // alert("This table does not contain any Image, Shape or Roi columns required for BioFile Finder.");
+              });
+            }
+          }
+          div.title = `Columns: ${colHtml}`;
+        };
+      });
     </script>
     {% endblock %}

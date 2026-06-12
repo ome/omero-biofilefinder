@@ -30,11 +30,12 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 from django.http import Http404, HttpResponse, JsonResponse
 from django.shortcuts import render
-from django.urls import reverse
+from django.urls import NoReverseMatch, reverse
 from omero.gateway import FileAnnotationWrapper
 from omeroweb.decorators import login_required
 from omeroweb.webclient.tree import marshal_annotations
 from omeroweb.webgateway.views import perform_table_query
+from pyarrow import csv as pa_csv
 
 from . import biofilefinder_settings as settings
 from .utils import get_image_count
@@ -85,73 +86,29 @@ def open_with_bff(request, conn=None, **kwargs):
     we can use that instead of the csv file.
     """
 
-    for obj_type in ["project", "plate", "dataset"]:
+    for obj_type in ["project", "plate", "dataset", "image"]:
         obj_id = request.GET.get(obj_type)
         if obj_id is not None:
             break
 
     if obj_id is None:
-        raise Http404("Use ?project=1 or ?screen=1")
+        raise Http404("Use ?project=1 or ?dataset=1 or ?plate=1 or ?image=1")
     else:
         obj_id = int(obj_id)
 
-    csv_url = reverse(
-        "omero_biofilefinder_csv", kwargs={"obj_id": obj_id, "obj_type": obj_type}
-    )
-    bff_url = get_bff_url(request, csv_url, "omero.csv", ext="csv")
+    bff_url = None
+    if obj_type in ["project", "plate", "dataset"]:
+        csv_url = reverse(
+            "omero_biofilefinder_csv", kwargs={"obj_id": obj_id, "obj_type": obj_type}
+        )
+        bff_url = get_bff_url(request, csv_url, "omero.csv", ext="csv")
 
-    # We want to pick some columns to show in the BFF app.
-    # Need to know a few Keys from Key-Value pairs.
-    # Let's just check first 5 images...
-    image_ids = []
     obj = conn.getObject(obj_type, obj_id)
     if obj is None:
         raise Http404(f"{obj_type}:{obj_id} Not Found")
 
     # image count
     img_count = get_image_count(conn, obj_type.capitalize(), obj_id)
-
-    if obj_type == "project" or obj_type == "dataset":
-        if obj_type == "project":
-            datasets = list(obj.listChildren())
-        else:
-            datasets = [obj]
-        for dataset in datasets:
-            for image in dataset.listChildren():
-                image_ids.append(image.id)
-                if len(image_ids) > 5:
-                    break
-            if len(image_ids) > 5:
-                break
-    elif obj_type == "plate":
-        for well in obj.listChildren():
-            image = well.getImage(0)
-            image_ids.append(image.id)
-            if len(image_ids) > 5:
-                break
-
-    # if len(image_ids) == 0:
-    #     return HttpResponse(f"No images found in {obj_type}:{obj_id}")
-
-    # Get KVP keys for 5 images...
-    anns, experimenters = marshal_annotations(conn, image_ids=image_ids, ann_type="map")
-    keys = defaultdict(int)
-    for ann in anns:
-        for key, val in ann["values"]:
-            keys[key] += 1
-    # Sort keys by number of occurrences and take the top 3
-    sorted_keys = sorted(keys.keys(), key=lambda x: keys[x], reverse=True)
-    # Show max 5 columns (4 keys)
-    col_names = ["File Name"]
-    if obj_type == "project":
-        col_names.append("Dataset")
-    elif obj_type == "plate":
-        col_names.append("Well")
-    col_names.extend(sorted_keys[:3])
-    col_width = 1 / len(col_names)
-    # column query e.g. "File Name:0.25,Dataset:0.25,Key1:0.25,Key2:0.25"
-    col_query = ",".join([f"{name}:{col_width}:.2f" for name in col_names])
-    bff_url += "&c=" + col_query
 
     # If there is a parquet file already attached to the project, we can
     # use that instead of the csv file.
@@ -167,7 +124,7 @@ def open_with_bff(request, conn=None, **kwargs):
                     "description": ann.getDescription(),
                     "size": ann.getFile().getSize(),
                     "created": ann.creationEventDate().strftime("%Y-%m-%d %H:%M:%S.%Z"),
-                    "bbf_url": get_bff_url(
+                    "bff_url": get_bff_url(
                         request, pq_url, "omero.parquet", ext="parquet"
                     ),
                 }
@@ -183,24 +140,36 @@ def open_with_bff(request, conn=None, **kwargs):
         file = ann.getFile()
         if file is not None and file.getMimetype() == "OMERO.tables":
             return True
+        if file is not None and file.getName().endswith(".csv"):
+            return True
         return False
 
     anns = [ann for ann in anns if is_table_ann(ann)]
+    anns = sorted(anns, key=lambda x: x.creationEventDate(), reverse=True)
 
     for ann in anns:
-        table_pq_url = reverse(
-            "omero_biofilefinder_table_to_parquet", kwargs={"ann_id": ann.id}
-        )
+        # Handle csv or OMERO.table (to parquet) links...
+        file_name = ann.getFile().getName()
+        if ann.getFile().getName().endswith(".csv"):
+            url_name = "omero_biofilefinder_csv_to_bff_csv"
+            ext = "csv"
+        else:
+            url_name = "omero_biofilefinder_table_to_parquet"
+            file_name = (
+                file_name if file_name.endswith(".parquet") else file_name + ".parquet"
+            )
+            ext = "parquet"
+        table_url = reverse(url_name, kwargs={"ann_id": ann.id})
         table_anns.append(
             {
                 "id": ann.id,
+                "file_id": ann.getFile().id,
                 "name": ann.getFile().getName(),
                 "description": ann.getDescription(),
                 "size": ann.getFile().getSize(),
                 "created": ann.creationEventDate().strftime("%Y-%m-%d %H:%M:%S.%Z"),
-                "bff_url": get_bff_url(
-                    request, table_pq_url, "omero_table.parquet", ext="parquet"
-                ),
+                "bff_url": get_bff_url(request, table_url, file_name, ext=ext),
+                "ext": ext,
             }
         )
 
@@ -220,8 +189,156 @@ def open_with_bff(request, conn=None, **kwargs):
     return render(request, "omero_biofilefinder/open_with_bff.html", context)
 
 
+def get_urls(table_row, image_col, roi_col, shape_col):
+    """
+    Given a row from a table, find the shape or ROI or image id and return the
+    OMERO.web URL and thumbnail URL.
+    """
+    row_type = None
+    row_id = None
+    webclient_url = reverse("webindex")
+    try:
+        omero_iviewer_index = reverse("omero_iviewer_index")
+    except NoReverseMatch:
+        # iviewer not installed
+        omero_iviewer_index = None
+    for otype, idx in zip(["shape", "roi", "image"], [shape_col, roi_col, image_col]):
+        if idx is not None and table_row[idx]:
+            try:
+                row_id = int(table_row[idx])
+            except ValueError:
+                continue
+            row_type = otype
+            row_id = table_row[idx]
+            break
+
+    if row_type == "image":
+        web_url = webclient_url + f"img_detail/{row_id}/"
+        thumb_url = reverse("webgateway_render_thumbnail", kwargs={"iid": row_id})
+    elif row_type == "shape":
+        thumb_url = reverse(
+            "webgateway_render_shape_thumbnail", kwargs={"shapeId": row_id}
+        )
+        if omero_iviewer_index:
+            web_url = omero_iviewer_index + f"?shape={row_id}"
+        else:
+            web_url = webclient_url + f"?show=shape-{row_id}/"
+    elif row_type == "roi":
+        thumb_url = reverse("webgateway_render_roi_thumbnail", kwargs={"roiId": row_id})
+        if omero_iviewer_index:
+            web_url = omero_iviewer_index + f"?roi={row_id}"
+        else:
+            web_url = webclient_url + f"?show=roi-{row_id}/"
+    return web_url, thumb_url
+
+
+@login_required()
+def csv_metadata(request, fileId, conn=None, **kwargs):
+    """
+    Return metadata for a CSV file as JSON. This is used by BFF to display metadata
+    about the file.
+
+    Returns {"columns": [{"name": "Column Name", "type": "string|int|float"}, ...], }
+    """
+    orig_file = conn.getObject("OriginalFile", fileId)
+    if orig_file is None:
+        return JsonResponse({"error": "File not found"}, status=404)
+
+    columns = []
+    num_rows = 0
+    with orig_file.asFileObj() as file_obj:  # Returns a file-like object
+        # use csv reader to read first 10 lines to get column names and types
+        csv_bytes = file_obj.read()
+        arrow_table = pa_csv.read_csv(io.BytesIO(csv_bytes))
+
+        sch = arrow_table.schema
+        columns = [
+            {"name": name, "type": str(t)} for name, t in zip(sch.names, sch.types)
+        ]
+        num_rows = arrow_table.num_rows
+
+    metadata = {
+        "name": orig_file.getName(),
+        "columns": columns,
+        "totalCount": num_rows,
+    }
+    return JsonResponse(metadata)
+
+
+@login_required()
+def csv_to_bff_csv(request, ann_id, conn=None, **kwargs):
+    """
+    Load a CSV FileAnnotation, convert it to the format BFF expects, and return as
+    a CSV file for BFF to load. If there is an Image or image column, add columns
+    with the OMERO.web image and thumbnail URLs.
+    """
+
+    # Get the FileAnnotation
+    ann = conn.getObject("FileAnnotation", ann_id)
+    if ann is None or ann.getFile() is None:
+        return HttpResponse("FileAnnotation not found", status=404)
+
+    orig_file = ann.getFile()
+    csv_text = ""
+    with orig_file.asFileObj() as file_obj:  # Returns a file-like object
+        csv_text = file_obj.read().decode("utf-8")  # Assuming the CSV is utf-8 encoded
+
+    # write a modified csv file to buffer and return as response
+    with io.StringIO() as csvfile:
+        writer = csv.writer(csvfile)
+
+        # Read the file as text
+        # OMERO file_obj is binary, decode as utf-8
+        reader = csv.reader(io.StringIO(csv_text))
+        try:
+            header = next(reader)
+        except StopIteration:
+            return  # Empty file
+
+        # Find image column (case-insensitive)
+        image_col = None
+        shape_col = None
+        roi_col = None
+        for idx, col in enumerate(header):
+            if col.lower() in ("image", "image_id", "image id"):
+                image_col = idx
+            elif col.lower() in ("shape", "shape_id", "shape id"):
+                shape_col = idx
+            elif col.lower() in ("roi", "roi_id", "roi id"):
+                roi_col = idx
+        # Compose new header
+        new_header = list(header)
+        if image_col is not None or shape_col is not None or roi_col is not None:
+            new_header.insert(image_col + 1, "File Path")
+            new_header.insert(image_col + 2, "Thumbnail")
+
+        writer.writerow(new_header)
+
+        # For each row, add OMERO.web URLs if possible
+        for row in reader:
+            new_row = list(row)
+            if image_col is not None or shape_col is not None or roi_col is not None:
+                urls = get_urls(new_row, image_col, roi_col, shape_col)
+                new_row.insert(image_col + 1, urls[0])
+                new_row.insert(image_col + 2, urls[1])
+            writer.writerow(new_row)
+
+        response = HttpResponse(
+            csvfile.getvalue(),
+            content_type="text/csv",
+            headers={
+                "Content-Disposition": f'attachment; filename="{orig_file.getName()}"'
+            },
+        )
+        return response
+
+
 @login_required()
 def omero_to_csv(request, obj_type, obj_id, conn=None, **kwargs):
+    """
+    Convert KVPs to a csv file on the fly. This is used to load KVPs into
+    BFF without needing to generate a file first.
+    """
 
     obj = conn.getObject(obj_type, obj_id)
     if obj is None:

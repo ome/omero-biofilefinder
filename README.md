@@ -5,33 +5,52 @@
 OMERO BioFile Finder
 ====================
 
-This plugin supports opening a table of OMERO Images (from a Project, Dataset or Plate) in the BioFile Finder app https://bff.allencell.org/.
+This plugin supports opening a table of OMERO Images, Rois or Shapes in the BioFile Finder app https://bff.allencell.org/.
 
-Key-Value pairs on Images in OMERO are converted into tabular data for BioFile Finder (BFF).
+Usage
+-----
 
-To use: select a Project, Dataset or Screen, use the context menu to `Open With > BioFile Finder`.
+The table of data that is displayed by BioFile Finder (BFF) can be compiled in a number of ways.
 
-For medium numbers of Images, BioFile Finder can load Key-Value pairs "on the fly", in a single
-http request. If the BFF app page is refreshed, it will re-load the Key-Value pairs from OMERO.
+In each case, you start by selecting a Project, Dataset or Plate in the webclient and use the
+context menu to `Open With > BioFile Finder`. This will open a page that lists the following options:
 
-However, for much larger numbers of Images, the time to load Key-Value pairs could become too long for
-a single http request. In this case, there is the option to use a server-side OMERO.script to export
-the Key-Value pairs to a `Parquet` file, attached to the Project. Then, BFF can load
-the `Parquet` file directly. You will need an Admin to install the
-script on the server (see below) and it has the `pyarrow` library as a dependency.
+ - Build a table "On the fly": BFF will request a table of Images from the chosen Project, Dataset or Plate.
+   This table will be compiled from Key-Value pairs on the Images with a column for each key. A Creation Date column
+   is also added. The advantage of this option is that you don't need to create the Table of data before-hand.
+   Also, if you refresh the BFF app page, it will re-load the table from OMERO and this will include
+   any updated Key-Value pairs. The disadvantage is that building the table on the fly can take several seconds
+   or longer for large numbers of Images. This may lead to a time-out on the request.
 
-A third option is provided by the ability of OMERO BioFile Finder to read `OMERO.tables` and convert
-them into compatible `Parquet` files on the fly.
+ - Use a script to build a table: OMERO-biofilefinder includes an OMERO server script that will create a
+   BFF-compatible table of Images as a `Parquet` file on a Project, Dataset or Plate using the same logic
+   as above. This option is only displayed on the `Open with` page if the Project, Dataset or Plate has
+   a large number of images (currently set at 400 or more) when time-out could become a problem for
+   "on the fly" creation.
+
+ - Use an existing OMERO.table or CSV file: if you have any OMERO.tables or `csv` files attached to the
+   selected Project, Dataset, Plate (or Image), these will be listed in the `Open with` page. You can
+   click on the OMERO.table or `csv` file to open it in BFF. In both cases, when the file is loaded into BFF,
+   it will formatted into a compatible format for BFF. OMERO-biofilefinder will look in the table for `Shape`, `ROI` or `Image`
+   columns (in that order). Any column name (when converted to lowercase) that matches `shape`, `shape_id` or `shape id` will
+   be used to retrieve `Shape` IDs. If none is found, then the same strategy is used to find any `ROI` column, followed
+   by any `Image` column. The `Shape` or `ROI` or `Image` ID is used to add an appropriate `Thumbnail` link for each row,
+   and to create a `File Path` to that object.
+   When loading an existing table, the `Shape`, `ROI` or `Image` IDs in the OMERO.table or `csv` file don't need to
+   correspond to the object that the file is attached to.
 
 
 Data in webclient - images and Key-Value pairs are from idr0021.
+
 <img width="1256" alt="Image" src="https://github.com/user-attachments/assets/8124429d-ef3e-497b-baa2-9d537ac98357" />
 
 Open Project with BioFile Finder...
+
 <img width="420" alt="Image" src="https://github.com/user-attachments/assets/4e933502-b322-42b4-a19c-8de603e5427c" />
 
-This will open a page where you can select a `parquet` file to open in Biofile Finder, or you can directly open
-Biofile Finder to read data from OMERO "on the fly". Here the images are grouped by `Gene Symbol`.
+This will open a page where you can choose options for loading data into BioFile Finder.
+Here the images are grouped by `Gene Symbol`.
+
 <img width="1510" alt="Image" src="https://github.com/user-attachments/assets/3993278e-b978-4e89-b886-6df587a1297b" />
 
 
@@ -51,7 +70,7 @@ Note the usage of single quotes around double quotes:
 
 Configure `Open with`:
 
-    $ omero config append omero.web.open_with '["omero_bff", "omero_biofilefinder_openwith", {"supported_objects":["project", "dataset", "plate"], "target": "_blank", "label": "BioFile Finder"}]'
+    $ omero config append omero.web.open_with '["omero_bff", "omero_biofilefinder_openwith", {"supported_objects":["project", "dataset", "plate", "image"], "target": "_blank", "label": "BioFile Finder"}]'
 
 If your omero-web server is not aware that it is running under `https`, the absolute URLs generated by Django will
 be `http`. This can be tested by visiting `https://your-omeroweb-url/api` and checking whether the url that appears
