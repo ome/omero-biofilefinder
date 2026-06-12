@@ -5,7 +5,7 @@ requires = [
 
 [project]
 name = "omero-biofilefinder"
-version = "0.1.1.dev0"
+version = "0.1.1"
 description = "OMERO BioFile Finder plugin"
 authors = [
    {name = "The Open Microscopy Team", email = "ome-team@openmicroscopy.org"}
@@ -31,7 +31,7 @@ dependencies = [
 
 [project.urls]
 Repository = "https://github.com/ome/omero-biofilefinder"
-Download = "https://github.com/ome/omero-biofilefinder/v0.1.1.dev0.tar.gz"
+Download = "https://github.com/ome/omero-biofilefinder/v0.1.1.tar.gz"
 
 [project.optional-dependencies]
 test = [
