@@ -30,8 +30,8 @@ dependencies = [
 ]
 
 [project.urls]
-Repository = "https://github.com/will-moore/omero-biofilefinder"
-Download = "https://github.com/will-moore/omero-biofilefinder/v0.1.0.dev0.tar.gz"
+Repository = "https://github.com/ome/omero-biofilefinder"
+Download = "https://github.com/ome/omero-biofilefinder/v0.1.0.dev0.tar.gz"
 
 [project.optional-dependencies]
 test = [
