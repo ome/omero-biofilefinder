@@ -8,7 +8,7 @@ name = "omero-biofilefinder"
 version = "0.1.0.dev0"
 description = "OMERO BioFile Finder plugin"
 authors = [
-   {name = "Will Moore", email = "ome-team@openmicroscopy.org"}
+   {name = "The Open Microscopy Team", email = "ome-team@openmicroscopy.org"}
 ]
 license = {file = "LICENSE"}
 keywords = ["omero", "omero-web"]
@@ -23,15 +23,15 @@ classifiers = [
     "Programming Language :: Python :: 3",
     "Topic :: Software Development :: Libraries :: Python Modules",
 ]
-requires-python = ">= 3.9"
+requires-python = ">= 3.11"
 dependencies = [
   "omero-web",
   "pyarrow",
 ]
 
 [project.urls]
-Repository = "https://github.com/will-moore/omero-biofilefinder"
-Download = "https://github.com/will-moore/omero-biofilefinder/v0.1.0.dev0.tar.gz"
+Repository = "https://github.com/ome/omero-biofilefinder"
+Download = "https://github.com/ome/omero-biofilefinder/v0.1.0.dev0.tar.gz"
 
 [project.optional-dependencies]
 test = [
