@@ -189,7 +189,10 @@
 
       // populate baseUrl hidden input with the base URL of this OMERO.web instance (e.g. "/" or "/web/" etc.)
       // Used by script to generate Thumbnail URLs eg. /webgateway/render_thumbnail/... or /web/webgateway/render_thumbnail/...
-      $baseUrl.value = window.location.pathname.split('biofilefinder')[0];
+      if ($baseUrl) {
+        // we check the form exists (script is installed etc), then set value...
+        $baseUrl.value = window.location.pathname.split('biofilefinder')[0];
+      }
 
       function pingActivities(jobId) {
         fetch(ACTIVITIES_URL)
