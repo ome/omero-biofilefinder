@@ -1,0 +1,3 @@
+[submodule "biofile-finder"]
+	path = biofile-finder
+	url = git@github.com:AllenInstitute/biofile-finder.git

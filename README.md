@@ -97,19 +97,24 @@ Configure other settings as described above.
 Updating the BioFile Finder app
 -------------------------------
 
-To update the `BioFile Finder` app, checkout the code, build and replace existing static files:
+The BioFile Finder repo is a git submodule. However, the build & packaging of `omero-biofilefinder`
+doesn't automatically build the BFF app. Currently, the build artifacts are simply committed
+to the `omero-biofilefinder` repo.
 
-NB: this uses [PR #519](https://github.com/AllenInstitute/biofile-finder/pull/519).
+To update the `BioFile Finder` app, checkout the code and build:
 
-    $ git clone git@github.com:AllenInstitute/biofile-finder.git
+    $ git submodule init
+    $ git submodule update
     $ cd biofile-finder
     $ npm install
     $ npm --prefix packages/web run build
 
-Replace existing static files in this repo with the build artifacts:
+Then replace existing static files in this repo with the build artifacts:
 
-    $ rm /PATH/TO/omero-biofilefinder/omero_biofilefinder/static/omero_biofilefinder/dist/*
-    $ cp packages/web/dist/* /PATH/TO/omero-biofilefinder/omero_biofilefinder/static/omero_biofilefinder/dist/
+    $ rm ../omero_biofilefinder/static/omero_biofilefinder/dist/*
+    $ cp packages/web/dist/* ../omero_biofilefinder/static/omero_biofilefinder/dist/
+
+NB: When updating the submodule commit, we also need to commit the new build artifacts.
 
 
 Further Info
