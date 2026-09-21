@@ -43,6 +43,12 @@ from pyarrow import csv as pa_csv
 VERSION = "0.1.0.dev0"
 BFF_NAMESPACE = "omero_biofilefinder.parquet"
 
+# These are column names that are used for "Open with" in BFF.
+# This is configured in column_descriptions.csv
+# E.g. "Open with > OMERO viewer" and "Open with > OMERO webclient"
+VIEWER_LINK = "OMERO viewer"
+WEBCLIENT_LINK = "OMERO webclient"
+
 
 def marshal_annotations(
     conn,
@@ -173,7 +179,7 @@ def process_container_to_csv(conn, dtype, obj_id, base_url):
                 kvp[image_id][key].append(value)
                 keys.add(key)
 
-    column_names = ["File Path", "File Name", dtype]
+    column_names = ["File Path", "File Name", WEBCLIENT_LINK, VIEWER_LINK, dtype]
     if dtype == "Plate":
         column_names.append("Well")
     column_names.extend(list(keys))
@@ -185,13 +191,16 @@ def process_container_to_csv(conn, dtype, obj_id, base_url):
         writer.writerow(column_names)
         for image_id in image_ids:
             values = kvp.get(image_id, {})
-            thumb_url = f"{base_url}webgateway/render_thumbnail/{image_id}"
-            # we end url with .png so that BFF enables open-with "Browser"
-            image_url = f"{base_url}webclient/?show=image-{image_id}&_=.png"
+            thumb_url = f"{base_url}webgateway/render_thumbnail/{image_id}/"
+            image_url = f"{base_url}webclient/?show=image-{image_id}"
+            viewer_url = f"{base_url}webclient/img_detail/{image_id}/"
             img_info = images_by_id.get(image_id)
             row = [
                 image_url,
                 img_info.get("name") if img_info else "Not Found",
+                # Open-with URLs
+                image_url,
+                viewer_url,
                 img_info.get("parent_name") if img_info else "Not Found",
             ]
             if dtype == "Plate":
