@@ -1,4 +1,5 @@
 import os
+import subprocess
 
 from setuptools import setup
 from setuptools.command.build_py import build_py
@@ -33,7 +34,11 @@ def require_npm(command, strict=False):
                     # Set the PUBLIC_PATH environment variable for the build
                     env = os.environ.copy()
                     env["PUBLIC_PATH"] = "auto"
-                    self.spawn(["npm", "--prefix", "packages/web", "run", "build"])
+                    subprocess.run(
+                        ["npm", "--prefix", "packages/web", "run", "build"],
+                        env=env,
+                        check=True,
+                    )
                     print("NPM build completed.")
                 finally:
                     os.chdir(original_dir)
