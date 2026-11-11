@@ -4,7 +4,8 @@ prune dist
 prune build
 recursive-include omero_biofilefinder *
 recursive-include biofile-finder *
-global-exclude .git
-global-exclude .github
-global-exclude node_modules
-global-exclude .DS_Store
+prune biofile-finder/node_modules
+prune biofile-finder/.git
+prune biofile-finder/.github
+global-exclude __pycache__
+global-exclude *.pyc
