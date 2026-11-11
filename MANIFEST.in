@@ -3,3 +3,8 @@ include LICENSE
 prune dist
 prune build
 recursive-include omero_biofilefinder *
+recursive-include biofile-finder *
+global-exclude .git
+global-exclude .github
+global-exclude node_modules
+global-exclude .DS_Store
