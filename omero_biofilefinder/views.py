@@ -40,6 +40,12 @@ from pyarrow import csv as pa_csv
 from . import biofilefinder_settings as settings
 from .utils import get_image_count
 
+try:
+    # .version_bff.py may not exist if setup.py hasn't run yet
+    from .version_bff import BFF_COMMIT_INFO
+except ImportError:
+    BFF_COMMIT_INFO = None
+
 BFF_NAMESPACE = "omero_biofilefinder.parquet"
 TABLE_NAMESPACE = "openmicroscopy.org/omero/bulk_annotations"
 
@@ -54,9 +60,21 @@ WEBCLIENT_LINK = "OMERO webclient"
 @login_required()
 def index(request, conn=None, **kwargs):
     # Placeholder index page
-    return render(
-        request, "omero_biofilefinder/index.html", {"is_admin": conn.isAdmin()}
-    )
+
+    bff_commit_date = None
+    bff_commit_hash = None
+    if BFF_COMMIT_INFO is not None:
+        bff_commit_hash = BFF_COMMIT_INFO.get("hash")
+        bff_commit_date = BFF_COMMIT_INFO.get("date", "")
+        # "2026-11-12 14:34:02 -0800" -> "2026-11-12 14:34:02"
+        bff_commit_date = " ".join(bff_commit_date.split(" ")[:-1])
+
+    context = {
+        "is_admin": conn.isAdmin(),
+        "bff_commit_hash": bff_commit_hash,
+        "bff_commit_date": bff_commit_date,
+    }
+    return render(request, "omero_biofilefinder/index.html", context)
 
 
 def column_description(request, conn=None, **kwargs):
@@ -583,6 +601,9 @@ def app(request, url, **kwargs):
             # e.g. "/omero_biofilefinder/bff"
             basename = reverse("omero_biofilefinder_index") + "bff"
             content = content.replace('{basename:""}', f'{{basename:"{basename}"}}')
+        if url == "index.html":
+            content = content.replace('src="/app', 'src="app')
+            content = content.replace('href="/app', 'href="app')
 
         response = HttpResponse(content)
         if url.endswith(".js"):

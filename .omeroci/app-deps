@@ -1,0 +1,6 @@
+#!/bin/bash
+
+set -e
+set -u
+curl -fsSL https://rpm.nodesource.com/setup_24.x | sudo bash -
+sudo dnf install -y nodejs

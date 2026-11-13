@@ -130,20 +130,25 @@ Configure other settings as described above.
 Updating the BioFile Finder app
 -------------------------------
 
-To update the `BioFile Finder` app, checkout the code, build and replace existing static files:
+The BioFile Finder repo is a git submodule. Building `omero-biofilefinder` (e.g. `pip install -e .`
+or `python -m build`) automatically builds the BFF app (requires `npm v24.x`) and copies the build
+artifacts to `omero_biofilefinder/static/omero_biofilefinder/dist/`. This will also build the wheel
+in a temp build directory; To only build the `sdist` for development, use `python setup.py sdist`
+or `pip install -e .`.
 
-NB: this uses [PR #519](https://github.com/AllenInstitute/biofile-finder/pull/519).
+To update the `BioFile Finder` app, checkout the submodule and rebuild:
 
-    $ git clone git@github.com:AllenInstitute/biofile-finder.git
+    $ git submodule init
+    $ git submodule update
+    $ pip install -e .
+
+This runs the equivalent of:
+
     $ cd biofile-finder
     $ npm install
     $ npm --prefix packages/web run build
-
-Replace existing static files in this repo with the build artifacts:
-
-    $ rm /PATH/TO/omero-biofilefinder/omero_biofilefinder/static/omero_biofilefinder/dist/*
-    $ cp packages/web/dist/* /PATH/TO/omero-biofilefinder/omero_biofilefinder/static/omero_biofilefinder/dist/
-
+    $ rm ../omero_biofilefinder/static/omero_biofilefinder/dist/*
+    $ cp packages/web/dist/* ../omero_biofilefinder/static/omero_biofilefinder/dist/
 
 Further Info
 ============
