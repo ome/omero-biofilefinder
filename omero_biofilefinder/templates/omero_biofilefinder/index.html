@@ -96,11 +96,11 @@
         </p>
         <p>
             BioFile Finder version:
-            {% if bff_commit_info %}
-                <a href="https://github.com/allenInstitute/biofile-finder/commit/{{ bff_commit_info.hash }}" target="_blank">
-                    {{ bff_commit_info.hash }}
+            {% if bff_commit_hash %}
+                <a href="https://github.com/allenInstitute/biofile-finder/commit/{{ bff_commit_hash }}" target="_blank">
+                    {{ bff_commit_hash }}
                 </a><br>
-                Date: {{ bff_commit_info.date }}
+                Date: {{ bff_commit_date }}
             {% else %}
                 Not available
             {% endif %}

@@ -60,7 +60,20 @@ WEBCLIENT_LINK = "OMERO webclient"
 @login_required()
 def index(request, conn=None, **kwargs):
     # Placeholder index page
-    context = {"is_admin": conn.isAdmin(), "bff_commit_info": BFF_COMMIT_INFO}
+
+    bff_commit_date = None
+    bff_commit_hash = None
+    if BFF_COMMIT_INFO is not None:
+        bff_commit_hash = BFF_COMMIT_INFO.get("hash")
+        bff_commit_date = BFF_COMMIT_INFO.get("date", "")
+        # "2026-11-12 14:34:02 -0800" -> "2026-11-12 14:34:02"
+        bff_commit_date = " ".join(bff_commit_date.split(" ")[:-1])
+
+    context = {
+        "is_admin": conn.isAdmin(),
+        "bff_commit_hash": bff_commit_hash,
+        "bff_commit_date": bff_commit_date,
+    }
     return render(request, "omero_biofilefinder/index.html", context)
 
 

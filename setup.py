@@ -33,7 +33,7 @@ def get_biofilefinder_commit_info():
             text=True,
         ).strip()
 
-        # Get the commit date
+        # Get the commit date: 2026-11-12 14:34:02 -0800
         commit_date = subprocess.check_output(
             ["git", "log", "-1", "--format=%ci"],
             cwd=BFF_DIR,
