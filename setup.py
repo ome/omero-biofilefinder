@@ -12,6 +12,58 @@ BFF_DIR = os.path.join(ROOT, "biofile-finder")
 DIST_DIR = os.path.join(
     ROOT, "omero_biofilefinder", "static", "omero_biofilefinder", "dist"
 )
+BFF_VERSION_FILE = os.path.join(ROOT, "omero_biofilefinder", "version_bff.py")
+
+
+def get_biofilefinder_commit_info():
+    """
+    Get the commit hash and date of the biofile-finder submodule.
+
+    Returns a dict with 'hash' and 'date' keys, or None if unable to retrieve.
+    """
+    try:
+        if not os.path.exists(BFF_DIR):
+            return None
+
+        # Get the current commit hash
+        commit_hash = subprocess.check_output(
+            ["git", "rev-parse", "HEAD"],
+            cwd=BFF_DIR,
+            stderr=subprocess.DEVNULL,
+            text=True,
+        ).strip()
+
+        # Get the commit date
+        commit_date = subprocess.check_output(
+            ["git", "log", "-1", "--format=%ci"],
+            cwd=BFF_DIR,
+            stderr=subprocess.DEVNULL,
+            text=True,
+        ).strip()
+
+        return {
+            "hash": commit_hash[:8],  # First 8 characters of the hash
+            "date": commit_date,
+        }
+    except (subprocess.CalledProcessError, FileNotFoundError, OSError):
+        # git command failed or biofile-finder directory doesn't exist
+        return None
+
+
+def write_version_file(bff_commit_info):
+    """
+    Write BioFile Finder commit info to version_bff.py
+    """
+    info_repr = repr(bff_commit_info)
+    new_content = f"BFF_COMMIT_INFO = {info_repr}\n"
+
+    with open(BFF_VERSION_FILE, "w") as f:
+        f.write(new_content)
+
+    if bff_commit_info:
+        print(f"BioFile Finder commit info: {bff_commit_info['hash']}")
+    else:
+        print("BioFile Finder commit info not available")
 
 
 def require_npm(command, strict=False):
@@ -47,6 +99,10 @@ def require_npm(command, strict=False):
 
                 # run deploy_build.sh to copy built assets to omero_biofilefinder
                 self.spawn(["sh", "deploy_build.sh"])
+
+            # Get and write biofile-finder commit info
+            bff_commit_info = get_biofilefinder_commit_info()
+            write_version_file(bff_commit_info)
 
             command.run(self)
 

@@ -82,6 +82,9 @@
             <a style="color: white;" href="{% url 'omero_biofilefinder_admin' %}">Admin (script upload)</a>
           </div>
         {% endif %}
+        <div style="flex: 0 0 auto;">
+            <a style="color: white;" href="{% url 'omero_biofilefinder_index' %}">Home</a>
+        </div>
       </div>
 
       <div class="content">
@@ -90,6 +93,17 @@
         <p>
             Use the "Open With" context menu in OMERO.web to open data in the
             <a href="https://bff.allencell.org/">BioFile Finder</a> app.
+        </p>
+        <p>
+            BioFile Finder version:
+            {% if bff_commit_info %}
+                <a href="https://github.com/allenInstitute/biofile-finder/commit/{{ bff_commit_info.hash }}" target="_blank">
+                    {{ bff_commit_info.hash }}
+                </a><br>
+                Date: {{ bff_commit_info.date }}
+            {% else %}
+                Not available
+            {% endif %}
         </p>
         {% endblock %}
       </div>

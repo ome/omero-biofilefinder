@@ -40,6 +40,12 @@ from pyarrow import csv as pa_csv
 from . import biofilefinder_settings as settings
 from .utils import get_image_count
 
+try:
+    # .version_bff.py may not exist if setup.py hasn't run yet
+    from .version_bff import BFF_COMMIT_INFO
+except ImportError:
+    BFF_COMMIT_INFO = None
+
 BFF_NAMESPACE = "omero_biofilefinder.parquet"
 TABLE_NAMESPACE = "openmicroscopy.org/omero/bulk_annotations"
 
@@ -54,9 +60,8 @@ WEBCLIENT_LINK = "OMERO webclient"
 @login_required()
 def index(request, conn=None, **kwargs):
     # Placeholder index page
-    return render(
-        request, "omero_biofilefinder/index.html", {"is_admin": conn.isAdmin()}
-    )
+    context = {"is_admin": conn.isAdmin(), "bff_commit_info": BFF_COMMIT_INFO}
+    return render(request, "omero_biofilefinder/index.html", context)
 
 
 def column_description(request, conn=None, **kwargs):
