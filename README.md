@@ -131,7 +131,7 @@ Updating the BioFile Finder app
 -------------------------------
 
 The BioFile Finder repo is a git submodule. Building `omero-biofilefinder` (e.g. `pip install -e .`
-or `python -m build`) automatically builds the BFF app (requires `npm`) and copies the build
+or `python -m build`) automatically builds the BFF app (requires `npm v24.x`) and copies the build
 artifacts to `omero_biofilefinder/static/omero_biofilefinder/dist/`. This will also build the wheel
 in a temp build directory; To only build the `sdist` for development, use `python setup.py sdist`
 or `pip install -e .`.

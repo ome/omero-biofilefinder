@@ -33,6 +33,8 @@ def require_npm(command, strict=False):
                     self.spawn(["npm", "install"])
                     # Set the PUBLIC_PATH environment variable for the build
                     env = os.environ.copy()
+                    # all links to js, css etc must be relative, so that we
+                    # can deploy the bff app under the biofilefinder/bff/app/ URL
                     env["PUBLIC_PATH"] = "auto"
                     subprocess.run(
                         ["npm", "--prefix", "packages/web", "run", "build"],
