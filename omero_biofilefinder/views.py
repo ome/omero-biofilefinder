@@ -314,6 +314,24 @@ def get_obj_type_and_column(col_names, first_row=None):
     return obj_type, obj_column_idx
 
 
+def get_obj_name_index(obj_type, header):
+    col_names = [c.lower() for c in header]
+    # "shape_text" or "image name" etc.
+    to_check = [
+        f"{obj_type}_text",
+        f"{obj_type} text",
+        f"{obj_type}_name",
+        f"{obj_type} name",
+        "name",
+        "text",
+    ]
+    for col_name in to_check:
+        if col_name in col_names:
+            idx = col_names.index(col_name)
+            return idx
+    return -1
+
+
 @login_required()
 def csv_to_bff_csv(request, ann_id, conn=None, **kwargs):
     """
@@ -348,14 +366,17 @@ def csv_to_bff_csv(request, ann_id, conn=None, **kwargs):
 
         # Find key column (case-insensitive)
         obj_type, obj_column_idx = get_obj_type_and_column(header, first_row)
+        # Get the index of the column containing the object name (case-insensitive)
+        name_column_idx = get_obj_name_index(obj_type, header)
         # Compose new header
         new_header = list(header)
         if obj_column_idx is not None:
             new_header.insert(obj_column_idx + 1, "File Path")
-            new_header.insert(obj_column_idx + 2, "Thumbnail")
-            new_header.insert(obj_column_idx + 3, VIEWER_LINK)
+            new_header.insert(obj_column_idx + 2, "File Name")
+            new_header.insert(obj_column_idx + 3, "Thumbnail")
+            new_header.insert(obj_column_idx + 4, VIEWER_LINK)
         if obj_type == "image":
-            new_header.insert(obj_column_idx + 4, WEBCLIENT_LINK)
+            new_header.insert(obj_column_idx + 5, WEBCLIENT_LINK)
 
         writer.writerow(new_header)
 
@@ -364,13 +385,17 @@ def csv_to_bff_csv(request, ann_id, conn=None, **kwargs):
             new_row = list(row)
             if obj_column_idx is not None:
                 urls = get_urls(obj_type, new_row[obj_column_idx])
-                # 'File Path', 'Thumbnail', and 'Viewer Link' columns
+                obj_name = new_row[name_column_idx] if name_column_idx != -1 else "-"
+                if obj_name == "":
+                    obj_name = "-"  # otherwise BFF will use File Path -> 'webclient'
+                # 'File Path', 'File Name', 'Thumbnail', and 'Viewer Link' columns
                 new_row.insert(obj_column_idx + 1, urls["webclient"])
-                new_row.insert(obj_column_idx + 2, urls["thumbnail"])
-                new_row.insert(obj_column_idx + 3, urls["viewer"])
+                new_row.insert(obj_column_idx + 2, obj_name)
+                new_row.insert(obj_column_idx + 3, urls["thumbnail"])
+                new_row.insert(obj_column_idx + 4, urls["viewer"])
             if obj_type == "image":
                 # WEBCLIENT_LINK is only relevant for images
-                new_row.insert(obj_column_idx + 4, urls["webclient"])
+                new_row.insert(obj_column_idx + 5, urls["webclient"])
             writer.writerow(new_row)
 
         # write the first_row, then all remaining rows
