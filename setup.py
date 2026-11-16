@@ -17,9 +17,10 @@ BFF_VERSION_FILE = os.path.join(ROOT, "omero_biofilefinder", "version_bff.py")
 
 def get_biofilefinder_commit_info():
     """
-    Get the commit hash and date of the biofile-finder submodule.
+    Get the commit hash, date, and tag (if any) of the biofile-finder submodule.
 
-    Returns a dict with 'hash' and 'date' keys, or None if unable to retrieve.
+    Returns a dict with 'hash', 'date', and 'tag' keys, or None if unable to retrieve.
+    The 'tag' value will be None if the commit is not tagged.
     """
     try:
         if not os.path.exists(BFF_DIR):
@@ -41,9 +42,23 @@ def get_biofilefinder_commit_info():
             text=True,
         ).strip()
 
+        # Try to get the tag for this commit (if any)
+        tag = None
+        try:
+            tag = subprocess.check_output(
+                ["git", "describe", "--tags", "--exact-match"],
+                cwd=BFF_DIR,
+                stderr=subprocess.DEVNULL,
+                text=True,
+            ).strip()
+        except subprocess.CalledProcessError:
+            # Current commit is not tagged
+            pass
+
         return {
             "hash": commit_hash[:8],  # First 8 characters of the hash
             "date": commit_date,
+            "tag": tag,
         }
     except (subprocess.CalledProcessError, FileNotFoundError, OSError):
         # git command failed or biofile-finder directory doesn't exist
