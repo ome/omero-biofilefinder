@@ -63,16 +63,19 @@ def index(request, conn=None, **kwargs):
 
     bff_commit_date = None
     bff_commit_hash = None
+    bff_tag = None
     if BFF_COMMIT_INFO is not None:
         bff_commit_hash = BFF_COMMIT_INFO.get("hash")
         bff_commit_date = BFF_COMMIT_INFO.get("date", "")
         # "2026-11-12 14:34:02 -0800" -> "2026-11-12 14:34:02"
         bff_commit_date = " ".join(bff_commit_date.split(" ")[:-1])
+        bff_tag = BFF_COMMIT_INFO.get("tag")
 
     context = {
         "is_admin": conn.isAdmin(),
         "bff_commit_hash": bff_commit_hash,
         "bff_commit_date": bff_commit_date,
+        "bff_tag": bff_tag,
     }
     return render(request, "omero_biofilefinder/index.html", context)
 
