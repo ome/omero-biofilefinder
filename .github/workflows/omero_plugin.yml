@@ -23,7 +23,9 @@ jobs:
     env:
       STAGE: app
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
+        with:
+          submodules: 'true'
       - name: Checkout omero-test-infra
         uses: actions/checkout@master
         with:

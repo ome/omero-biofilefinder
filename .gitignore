@@ -3,3 +3,7 @@ node_modules
 *.pyc
 *.DS_Store
 *.egg-info
+omero_biofilefinder/static/omero_biofilefinder/dist/*
+dist/
+# version_bff.py is generated during package build
+version_bff.py
